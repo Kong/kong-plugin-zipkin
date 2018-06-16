@@ -15,7 +15,7 @@ OpenTracingHandler.VERSION = "0.0.1"
 
 -- We want to run first so that timestamps taken are at start of the phase
 -- also so that other plugins might be able to use our structures
-OpenTracingHandler.PRIORITY = 100000
+OpenTracingHandler.PRIORITY = math.huge
 
 function OpenTracingHandler:new(name)
 	OpenTracingHandler.super.new(self, name or "opentracing")
