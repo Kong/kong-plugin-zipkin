@@ -131,7 +131,7 @@ function OpenTracingHandler:body_filter(conf)
 	local opentracing = self:get_context(conf, ctx)
 
 	-- Finish header filter when body filter starts
-	if not opentracing.header_filter_finished then
+	if not opentracing.header_filter_finished and opentracing.header_filter_span then
 		local now = ngx.now()
 
 		opentracing.header_filter_span:finish(now)
@@ -185,7 +185,7 @@ function OpenTracingHandler:log(conf)
 		proxy_span:set_tag("peer.port", balancer_address.port)
 	end
 
-	if not opentracing.header_filter_finished then
+	if not opentracing.header_filter_finished and opentracing.header_filter_span then
 		opentracing.header_filter_span:finish(now)
 		opentracing.header_filter_finished = true
 	end
