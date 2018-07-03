@@ -58,7 +58,7 @@ function OpenTracingHandler:initialise_request(conf, ctx)
 			["http.url"] = ngx.var.scheme .. "://" .. ngx.var.host .. ":" .. ngx.var.server_port .. ngx.var.request_uri;
 			[ip_tag(ngx.var.remote_addr)] = ngx.var.remote_addr;
 			["peer.ipv6"] = nil;
-			["peer.port"] = tonumber(ngx.var.remote_port, 10);
+			["peer.port"] = ngx.var.remote_port;
 		}
 	})
 	ctx.opentracing = {
@@ -171,18 +171,18 @@ function OpenTracingHandler:log(conf)
 			local try = balancer_tries[i]
 			local span = proxy_span:start_child_span("kong.balancer", try.balancer_start / 1000)
 			span:set_tag(ip_tag(try.ip), try.ip)
-			span:set_tag("peer.port", try.port)
-			span:set_tag("kong.balancer.try", i)
+			span:set_tag("peer.port", tostring(try.port))
+			span:set_tag("kong.balancer.try", tostring(i))
 			if i < balancer_address.try_count then
-				span:set_tag("error", true)
+				span:set_tag("error", "true")
 				span:set_tag("kong.balancer.state", try.state)
-				span:set_tag("kong.balancer.code", try.code)
+				span:set_tag("kong.balancer.code", tostring(try.code))
 			end
 			span:finish((try.balancer_start + try.balancer_latency) / 1000)
 		end
 		proxy_span:set_tag("peer.hostname", balancer_address.hostname) -- could be nil
 		proxy_span:set_tag(ip_tag(balancer_address.ip), balancer_address.ip)
-		proxy_span:set_tag("peer.port", balancer_address.port)
+		proxy_span:set_tag("peer.port", tostring(balancer_address.port))
 	end
 
 	if not opentracing.header_filter_finished then
@@ -194,7 +194,7 @@ function OpenTracingHandler:log(conf)
 		opentracing.body_filter_span:finish(ctx.KONG_BODY_FILTER_ENDED_AT / 1000)
 	end
 
-	request_span:set_tag("http.status_code", ngx.status)
+	request_span:set_tag("http.status_code", tostring(ngx.status))
 	if ctx.authenticated_consumer then
 		request_span:set_tag("kong.consumer", ctx.authenticated_consumer.id)
 	end
@@ -202,11 +202,11 @@ function OpenTracingHandler:log(conf)
 		request_span:set_tag("kong.credential", ctx.authenticated_credentials.id)
 	end
 	if ctx.route then
-		proxy_span:set_tag("kong.route", ctx.route.id)
+		request_span:set_tag("kong.route", ctx.route.id)
 	end
 	if ctx.service then
-		proxy_span:set_tag("kong.service", ctx.service.id)
-		proxy_span:set_tag("peer.service", ctx.service.name)
+		request_span:set_tag("kong.service", ctx.service.id)
+		request_span:set_tag("peer.service", ctx.service.name)
 	end
 	proxy_span:finish(ctx.KONG_BODY_FILTER_ENDED_AT and ctx.KONG_BODY_FILTER_ENDED_AT/1000 or now)
 	request_span:finish(now)
