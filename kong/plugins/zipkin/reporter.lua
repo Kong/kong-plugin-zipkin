@@ -44,7 +44,7 @@ function zipkin_reporter_methods:report(span)
 		remoteEndpoint = port and {
 			ipv4 = span:get_tag "peer.ipv4";
 			ipv6 = span:get_tag "peer.ipv6";
-			port = port; -- port is *not* optional
+			port = tonumber(port, 10); -- port is *not* optional
 		} or cjson.null;
 		tags = span.tags; -- XXX: not guaranteed by documented opentracing-lua API
 		annotations = span.logs -- XXX: not guaranteed by documented opentracing-lua API to be in correct format
