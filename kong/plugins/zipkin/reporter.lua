@@ -25,6 +25,17 @@ local span_kind_map = {
 	producer = "PRODUCER";
 	consumer = "CONSUMER";
 }
+
+-- Utility function to get zipkin tags from opentracing span.
+-- values of zipkin tags should be strings, see [zipkin-api](https://zipkin.io/zipkin-api).
+local function get_zipkin_tags(span)
+	local zipkin_tags = {}
+	for k, v in span:each_tag() do
+		zipkin_tags[k] = tostring(v)
+	end
+	return zipkin_tags
+end
+
 function zipkin_reporter_methods:report(span)
 	local span_context = span.context
 	local span_kind = span:get_tag "span.kind"
@@ -46,7 +57,7 @@ function zipkin_reporter_methods:report(span)
 			ipv6 = span:get_tag "peer.ipv6";
 			port = port; -- port is *not* optional
 		} or cjson.null;
-		tags = span.tags; -- XXX: not guaranteed by documented opentracing-lua API
+		tags = get_zipkin_tags(span); -- XXX: not guaranteed by documented opentracing-lua API
 		annotations = span.logs -- XXX: not guaranteed by documented opentracing-lua API to be in correct format
 	}
 
