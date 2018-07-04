@@ -28,8 +28,8 @@ local span_kind_map = {
 
 -- Utility function to convert opentracing tags to zipkin tags
 -- values of zipkin tags should be strings, see [zipkin-api](https://zipkin.io/zipkin-api).
-function to_zipkin_tags(opentracing_tags)
-	zipkin_tags = {}
+local function to_zipkin_tags(opentracing_tags)
+	local zipkin_tags = {}
 	if not opentracing_tags then
 		return zipkin_tags
 	end
