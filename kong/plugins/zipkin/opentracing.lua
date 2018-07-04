@@ -172,11 +172,11 @@ function OpenTracingHandler:log(conf)
 			local span = proxy_span:start_child_span("kong.balancer", try.balancer_start / 1000)
 			span:set_tag(ip_tag(try.ip), try.ip)
 			span:set_tag("peer.port", try.port)
-			span:set_tag("kong.balancer.try", string.format("%d", i))
+			span:set_tag("kong.balancer.try", i)
 			if i < balancer_address.try_count then
 				span:set_tag("error", true)
 				span:set_tag("kong.balancer.state", try.state)
-				span:set_tag("kong.balancer.code", string.format("%d", try.code))
+				span:set_tag("kong.balancer.code", try.code)
 			end
 			span:finish((try.balancer_start + try.balancer_latency) / 1000)
 		end
@@ -194,7 +194,7 @@ function OpenTracingHandler:log(conf)
 		opentracing.body_filter_span:finish(ctx.KONG_BODY_FILTER_ENDED_AT / 1000)
 	end
 
-	request_span:set_tag("http.status_code", string.format("%d", ngx.status))
+	request_span:set_tag("http.status_code", ngx.status)
 	if ctx.authenticated_consumer then
 		request_span:set_tag("kong.consumer", ctx.authenticated_consumer.id)
 	end
