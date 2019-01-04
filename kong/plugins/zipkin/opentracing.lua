@@ -36,11 +36,8 @@ end
 -- Utility function to set either ipv4 or ipv6 tags
 -- nginx apis don't have a flag to indicate whether an address is v4 or v6
 local function ip_tag(addr)
-	--check addr nil for short circuit situations 
-	if addr == nil then
-		return "peer.na"
 	-- use the presence of "." to signal v4 (v6 uses ":")
-	elseif addr:find(".", 1, true) then
+	if addr:find(".", 1, true) then
 		return "peer.ipv4"
 	else
 		return "peer.ipv6"
@@ -202,12 +199,14 @@ function OpenTracingHandler:log(conf)
 			span:finish((try.balancer_start + try.balancer_latency) / 1000)
 		end
 		proxy_span:set_tag("peer.hostname", balancer_data.hostname) -- could be nil
-		proxy_span:set_tag(ip_tag(balancer_data.ip), balancer_data.ip)
+		if balancer_data.ip ~= nil then
+         proxy_span:set_tag(ip_tag(balancer_data.ip), balancer_data.ip)
+      end
 		proxy_span:set_tag("peer.port", balancer_data.port)
 	end
 
 	if not opentracing.header_filter_finished and opentracing.header_filter_span then
-		opentracing.header_filter_span:finish(now)
+	   opentracing.header_filter_span:finish(now)
 		opentracing.header_filter_finished = true
 	end
 
