@@ -36,9 +36,9 @@ end
 -- Utility function to set either ipv4 or ipv6 tags
 -- nginx apis don't have a flag to indicate whether an address is v4 or v6
 local function ip_tag(addr)
-	--check addr not nil for short circuit situations 
+	--check addr nil for short circuit situations 
 	if addr == nil then
-		return "na"
+		return "peer.na"
 	-- use the presence of "." to signal v4 (v6 uses ":")
 	elseif addr:find(".", 1, true) then
 		return "peer.ipv4"
