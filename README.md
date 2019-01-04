@@ -49,7 +49,6 @@ Of those, this plugin currently uses:
   - `http.url`
   - `peer.ipv4`
   - `peer.ipv6`
-  - `peer.na` (short circuit situations)
   - `peer.port`
   - `peer.hostname`
   - `peer.service`
