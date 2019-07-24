@@ -11,6 +11,8 @@ return {
 					{ sample_ratio = { type = "number",
 					                   default = 0.001,
 					                   between = { 0, 1 } } },
+					{ default_service_name = { type = "string",
+					                        default = nil }, },
 				},
 		}, },
 	},
