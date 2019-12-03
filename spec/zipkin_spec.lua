@@ -27,7 +27,9 @@ describe("integration tests with mock zipkin server [#" .. strategy .. "]", func
   local cb
   local proxy_port, proxy_host
   local zipkin_port, zipkin_host
-  local route
+  local proxy_client_grpc
+  local route, grpc_route
+
   after_each(function()
     cb = nil
   end)
@@ -145,6 +147,18 @@ describe("integration tests with mock zipkin server [#" .. strategy .. "]", func
       preserve_host = true,
     })
 
+    -- grpc upstream
+    local grpc_service = bp.services:insert {
+      name = "grpc-service",
+      url = "grpc://localhost:15002",
+    }
+
+    grpc_route = bp.routes:insert {
+      service = grpc_service,
+      protocols = { "grpc" },
+      hosts = { "mock-grpc-route" },
+    }
+
     helpers.start_kong({
       database = strategy,
       nginx_conf = "spec/fixtures/custom_nginx.template",
@@ -152,6 +166,7 @@ describe("integration tests with mock zipkin server [#" .. strategy .. "]", func
 
     proxy_host = helpers.get_proxy_ip(false)
     proxy_port = helpers.get_proxy_port(false)
+    proxy_client_grpc = helpers.proxy_client_grpc()
   end)
 
   teardown(function()
@@ -211,6 +226,65 @@ describe("integration tests with mock zipkin server [#" .. strategy .. "]", func
     end))
   end)
 
+  it("generates spans, tags and annotations for regular requests (#grpc)", function()
+    assert.truthy(with_server(function(_, _, stream)
+      local spans = cjson.decode((assert(stream:get_body_as_string())))
+
+      --assert.equals(3, #spans)
+      local balancer_span, proxy_span, request_span = spans[1], spans[2], spans[3]
+      -- common assertions for request_span and proxy_span
+      assert_span_invariants(request_span, proxy_span, "POST")
+
+      -- specific assertions for request_span
+      local request_tags = request_span.tags
+      assert.truthy(request_tags["kong.node.id"]:match("^[%x-]+$"))
+      request_tags["kong.node.id"] = nil
+      assert.same({
+        ["http.method"] = "POST",
+        ["http.path"] = "/hello.HelloService/SayHello",
+        ["http.status_code"] = "200", -- found (matches server status)
+        lc = "kong"
+      }, request_tags)
+      local peer_port = request_span.remoteEndpoint.port
+      assert.equals("number", type(peer_port))
+      assert.same({ ipv4 = "127.0.0.1", port = peer_port }, request_span.remoteEndpoint)
+
+      -- specific assertions for proxy_span
+      assert.same(proxy_span.tags["kong.route"], grpc_route.id)
+      assert.same(proxy_span.tags["peer.hostname"], "localhost")
+
+      assert.same({ ipv4 = "127.0.0.1", port = 15002 },
+        proxy_span.remoteEndpoint)
+
+      -- specific assertions for balancer_span
+      assert.equals(balancer_span.parentId, request_span.id)
+      assert.equals(request_span.name .. " (balancer try 1)", balancer_span.name)
+      assert.equals("number", type(balancer_span.timestamp))
+      assert.equals("number", type(balancer_span.duration))
+
+      assert.same({ ipv4 = "127.0.0.1", port = 15002 },
+        balancer_span.remoteEndpoint)
+      assert.equals(ngx.null, balancer_span.localEndpoint)
+      assert.same({
+        error = "false",
+        ["kong.balancer.try"] = "1",
+      }, balancer_span.tags)
+    end, function()
+      -- Making the request
+      local ok, resp = proxy_client_grpc({
+        service = "hello.HelloService.SayHello",
+        body = {
+          greeting = "world!"
+        },
+        opts = {
+          ["-authority"] = "mock-grpc-route",
+        }
+      })
+      assert.truthy(ok)
+      assert.truthy(resp)
+    end))
+  end)
+
   it("generates spans, tags and annotations for non-matched requests", function()
     assert.truthy(with_server(function(_, _, stream)
       local spans = cjson.decode((assert(stream:get_body_as_string())))
@@ -265,7 +339,7 @@ describe("integration tests with mock zipkin server [#" .. strategy .. "]", func
     end))
   end)
 
-  it("propagates b3 headers on routed request", function()
+  -- TODO add grpc counterpart of above test case
     local trace_id = "1234567890abcdef"
     assert.truthy(with_server(function(_, _, stream)
       local spans = cjson.decode((assert(stream:get_body_as_string())))
