@@ -340,6 +340,8 @@ describe("integration tests with mock zipkin server [#" .. strategy .. "]", func
   end)
 
   -- TODO add grpc counterpart of above test case
+
+  it("propagates b3 headers for non-matched requests", function()
     local trace_id = "1234567890abcdef"
     assert.truthy(with_server(function(_, _, stream)
       local spans = cjson.decode((assert(stream:get_body_as_string())))
