@@ -13,9 +13,6 @@ local span_mt = {
 
 local ngx_now = ngx.now
 
-local function is(object)
-  return getmetatable(object) == span_mt
-end
 
 local function new(tracer, context, name, start_timestamp)
   assert(tracer, "missing tracer")
@@ -194,5 +191,4 @@ end
 
 return {
   new = new,
-  is = is,
 }

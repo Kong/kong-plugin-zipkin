@@ -8,10 +8,6 @@ local tracer_mt = {
   __index = tracer_methods,
 }
 
-local function is(object)
-  return getmetatable(object) == tracer_mt
-end
-
 local no_op_reporter = {
   report = function() end,
 }
@@ -49,10 +45,8 @@ function tracer_methods:start_span(name, options)
     references = options.references
     if child_of ~= nil then
       assert(references == nil, "cannot specify both references and child_of")
-      if zipkin_span.is(child_of) then
+      if type(child_of.context) == "function" then -- get the context instead of the span, if given a span
         child_of = child_of:context()
-      else
-        assert(zipkin_span_context.is(child_of), "child_of should be a span or span context")
       end
     end
     if references ~= nil then
@@ -109,10 +103,8 @@ function tracer_methods:register_extractor(format, extractor)
 end
 
 function tracer_methods:inject(context, format, carrier)
-  if zipkin_span.is(context) then
+  if type(context.context) == "function" then
     context = context:context()
-  else
-    assert(zipkin_span_context.is(context), "context should be a span or span context")
   end
   local injector = self.injectors[format]
   if injector == nil then
@@ -131,5 +123,4 @@ end
 
 return {
   new = new,
-  is = is,
 }

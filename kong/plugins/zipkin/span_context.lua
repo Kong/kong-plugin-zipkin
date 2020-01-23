@@ -20,10 +20,6 @@ local span_context_mt = {
   __index = span_context_methods,
 }
 
-local function is(object)
-  return getmetatable(object) == span_context_mt
-end
-
 local baggage_mt = {
   __newindex = function()
     error("attempt to set immutable baggage")
@@ -112,5 +108,4 @@ end
 
 return {
   new = new,
-  is = is,
 }
