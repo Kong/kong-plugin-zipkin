@@ -8,31 +8,8 @@ local tracer_mt = {
   __index = tracer_methods,
 }
 
-local no_op_reporter = {
-  report = function() end,
-}
-local no_op_sampler = {
-  sample = function() return false end,
-}
-
--- Make injectors and extractors weakly keyed so that unreferenced formats get dropped
-local injectors_metatable = {
-  __mode = "k",
-}
-local extractors_metatable = {
-  __mode = "k",
-}
-
 local function new(reporter, sampler)
-  if reporter == nil then
-    reporter = no_op_reporter
-  end
-  if sampler == nil then
-    sampler = no_op_sampler
-  end
   return setmetatable({
-    injectors = setmetatable({}, injectors_metatable),
-    extractors = setmetatable({}, extractors_metatable),
     reporter = reporter,
     sampler = sampler,
   }, tracer_mt)
@@ -80,39 +57,6 @@ end
 
 function tracer_methods:report(span)
   return self.reporter:report(span)
-end
-
-function tracer_methods:register_injector(format, injector)
-  assert(format, "invalid format")
-  assert(injector, "invalid injector")
-  self.injectors[format] = injector
-  return true
-end
-
-function tracer_methods:register_extractor(format, extractor)
-  assert(format, "invalid format")
-  assert(extractor, "invalid extractor")
-  self.extractors[format] = extractor
-  return true
-end
-
-function tracer_methods:inject(context, format, carrier)
-  if type(context.context) == "function" then
-    context = context:context()
-  end
-  local injector = self.injectors[format]
-  if injector == nil then
-    error("Unknown format: " .. format)
-  end
-  return injector(context, carrier)
-end
-
-function tracer_methods:extract(format, carrier)
-  local extractor = self.extractors[format]
-  if extractor == nil then
-    error("Unknown format: " .. format)
-  end
-  return extractor(carrier)
 end
 
 return {

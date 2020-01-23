@@ -1,6 +1,6 @@
-local zipkin_new_tracer = require "kong.plugins.zipkin.tracer".new
 local extractor = require "kong.plugins.zipkin.extractor"
 local new_zipkin_reporter = require "kong.plugins.zipkin.reporter".new
+local new_zipkin_tracer = require "kong.plugins.zipkin.tracer".new
 local to_hex = require "resty.string".to_hex
 
 local subsystem = ngx.config.subsystem
@@ -16,32 +16,15 @@ local ZipkinLogHandler = {
 
 local tracer_cache = setmetatable({}, {__mode = "k"})
 
-local function injector(span_context, headers)
-  -- We want to remove headers if already present
-  headers["x-b3-traceid"] = to_hex(span_context.trace_id)
-  headers["x-b3-parentspanid"] = span_context.parent_id and to_hex(span_context.parent_id) or nil
-  headers["x-b3-spanid"] = to_hex(span_context.span_id)
-  local Flags = kong.request.get_header("x-b3-flags") -- Get from request headers
-  headers["x-b3-flags"] = Flags
-  headers["x-b3-sampled"] = (not Flags) and (span_context.should_sample and "1" or "0") or nil
-  for key, value in span_context:each_baggage_item() do
-    -- XXX: https://github.com/opentracing/specification/issues/117
-    headers["uberctx-"..key] = ngx.escape_uri(value)
-  end
-end
-
-
 local function new_tracer(conf)
   local sampler = {
     sample = function()
       return math.random() < conf.sample_ratio
     end
   }
+  local reporter = new_zipkin_reporter(conf)
+  local tracer = new_zipkin_tracer(reporter, sampler)
 
-  local tracer = zipkin_new_tracer(new_zipkin_reporter(conf), sampler)
-
-  tracer:register_injector("http_headers", injector)
-  tracer:register_extractor("http_headers", extractor)
   return tracer
 end
 
@@ -124,7 +107,7 @@ if subsystem == "http" then
   initialize_request = function(conf, ctx)
     local tracer = get_tracer(conf)
     local req = kong.request
-    local wire_context = tracer:extract("http_headers", req.get_headers()) -- could be nil
+    local wire_context = extractor(req.get_headers()) -- could be nil
     local method = req.get_method()
     local forwarded_ip = kong.client.get_forwarded_ip()
 
@@ -166,11 +149,23 @@ if subsystem == "http" then
     get_or_add_proxy_span(zipkin, ctx.KONG_ACCESS_START / 1000)
 
     -- Want to send headers to upstream
-    local outgoing_headers = {}
-    zipkin.tracer:inject(zipkin.proxy_span, "http_headers", outgoing_headers)
+    local proxy_span = zipkin.proxy_span:context()
     local set_header = kong.service.request.set_header
-    for k, v in pairs(outgoing_headers) do
-      set_header(k, v)
+    -- We want to remove headers if already present
+    set_header("x-b3-traceid", to_hex(proxy_span.trace_id))
+    set_header("x-b3-spanid", to_hex(proxy_span.span_id))
+    if proxy_span.parent_id then
+      set_header("x-b3-parentspanid", to_hex(proxy_span.parent_id))
+    end
+    local Flags = kong.request.get_header("x-b3-flags") -- Get from request headers
+    if Flags then
+      set_header("x-b3-flags", Flags)
+    else
+      set_header("x-b3-sampled", proxy_span.should_sample and "1" or "0")
+    end
+    for key, value in proxy_span:each_baggage_item() do
+      -- XXX: https://github.com/opentracing/specification/issues/117
+      set_header("uberctx-"..key, ngx.escape_uri(value))
     end
   end
 
