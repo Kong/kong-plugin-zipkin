@@ -17,14 +17,8 @@ local ZipkinLogHandler = {
 local tracer_cache = setmetatable({}, {__mode = "k"})
 
 local function new_tracer(conf)
-  local sampler = {
-    sample = function()
-      return math.random() < conf.sample_ratio
-    end
-  }
   local reporter = new_zipkin_reporter(conf)
-  local tracer = new_zipkin_tracer(reporter, sampler)
-
+  local tracer = new_zipkin_tracer(reporter, conf.sample_ratio)
   return tracer
 end
 

@@ -3,20 +3,22 @@ local ngx_now = ngx.now
 local zipkin_span = require "kong.plugins.zipkin.span"
 local zipkin_span_context = require "kong.plugins.zipkin.span_context"
 
+local math_random = math.random
+
 local tracer_methods = {}
 local tracer_mt = {
   __index = tracer_methods,
 }
 
-local function new(reporter, sampler)
+local function new(reporter, sample_ratio)
   return setmetatable({
     reporter = reporter,
-    sampler = sampler,
+    sample_ratio = sample_ratio,
   }, tracer_mt)
 end
 
 function tracer_methods:start_span(name, options)
-  local context, child_of, tags, extra_tags, start_timestamp
+  local context, child_of, tags, start_timestamp
   if options ~= nil then
     child_of = options.child_of
     if child_of ~= nil then
@@ -37,16 +39,10 @@ function tracer_methods:start_span(name, options)
   if child_of then
     context = child_of:child()
   else
-    local should_sample
-    should_sample, extra_tags = self.sampler:sample(name)
+    local should_sample = math_random() < self.sample_ratio
     context = zipkin_span_context.new(nil, nil, nil, should_sample)
   end
   local span = zipkin_span.new(self, context, name, start_timestamp)
-  if extra_tags then
-    for k, v in pairs(extra_tags) do
-      span:set_tag(k, v)
-    end
-  end
   if tags then
     for k, v in pairs(tags) do
       span:set_tag(k, v)
