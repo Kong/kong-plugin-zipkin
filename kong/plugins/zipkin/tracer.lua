@@ -39,19 +39,13 @@ local function new(reporter, sampler)
 end
 
 function tracer_methods:start_span(name, options)
-  local context, child_of, references, tags, extra_tags, start_timestamp
+  local context, child_of, tags, extra_tags, start_timestamp
   if options ~= nil then
     child_of = options.child_of
-    references = options.references
     if child_of ~= nil then
-      assert(references == nil, "cannot specify both references and child_of")
       if type(child_of.context) == "function" then -- get the context instead of the span, if given a span
         child_of = child_of:context()
       end
-    end
-    if references ~= nil then
-      assert(type(references) == "table", "references should be a table")
-      error("references NYI")
     end
     tags = options.tags
     if tags ~= nil then

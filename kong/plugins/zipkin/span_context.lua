@@ -70,36 +70,6 @@ function span_context_methods:child()
   }, span_context_mt)
 end
 
--- New from existing but with an extra baggage item
-function span_context_methods:clone_with_baggage_item(key, value)
-  assert(type(key) == "string", "invalid baggage key")
-  assert(type(value) == "string", "invalid baggage value")
-  local new_baggage = {}
-  if self.baggage then
-    for k, v in pairs(self.baggage) do
-      new_baggage[k] = v
-    end
-  end
-  new_baggage[key] = value
-  return setmetatable({
-    trace_id = self.trace_id,
-    span_id = self.span_id,
-    parent_id = self.parent_id,
-    should_sample = self.should_sample,
-    baggage = setmetatable(new_baggage, baggage_mt),
-  }, span_context_mt)
-end
-
-function span_context_methods:get_baggage_item(key)
-  assert(type(key) == "string", "invalid baggage key")
-  local baggage = self.baggage
-  if baggage == nil then
-    return nil
-  else
-    return baggage[key]
-  end
-end
-
 function span_context_methods:each_baggage_item()
   local baggage = self.baggage
   if baggage == nil then return function() end end

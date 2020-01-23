@@ -37,15 +37,6 @@ function span_methods:context()
   return self.context_
 end
 
-function span_methods:tracer()
-  return self.tracer_
-end
-
-function span_methods:set_operation_name(name)
-  assert(type(name) == "string", "name should be a string")
-  self.name = name
-end
-
 function span_methods:start_child_span(name, start_timestamp)
   return self.tracer_:start_span(name, {
     start_timestamp = start_timestamp,
@@ -130,63 +121,6 @@ function span_methods:log(key, value, timestamp)
     self.n_logs = 1
   end
   return true
-end
-
-function span_methods:log_kv(key_values, timestamp)
-  if timestamp == nil then
-    timestamp = self.tracer_:time()
-  else
-    assert(type(timestamp) == "number", "invalid timestamp for log")
-  end
-
-  local logs = self.logs
-  local n_logs
-  if logs then
-    n_logs = 0
-  else
-    n_logs = self.n_logs
-    logs = { }
-    self.logs = logs
-  end
-
-  for key, value in pairs(key_values) do
-    n_logs = n_logs + 1
-    logs[n_logs] = {
-      key = key,
-      value = value,
-      timestamp = timestamp,
-    }
-  end
-
-  self.n_logs = n_logs
-  return true
-end
-
-function span_methods:each_log()
-  local i = 0
-  return function(logs)
-    if i >= self.n_logs then
-      return
-    end
-    i = i + 1
-    local log = logs[i]
-    return log.key, log.value, log.timestamp
-  end, self.logs
-end
-
-function span_methods:set_baggage_item(key, value)
-  -- Create new context so that baggage is immutably passed around
-  local newcontext = self.context_:clone_with_baggage_item(key, value)
-  self.context_ = newcontext
-  return true
-end
-
-function span_methods:get_baggage_item(key)
-  return self.context_:get_baggage_item(key)
-end
-
-function span_methods:each_baggage_item()
-  return self.context_:each_baggage_item()
 end
 
 return {
