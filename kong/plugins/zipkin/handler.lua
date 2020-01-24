@@ -56,10 +56,9 @@ local function get_or_add_proxy_span(zipkin, timestamp)
     local tracer = zipkin.tracer
     local request_span = zipkin.request_span
     zipkin.proxy_span = tracer:start_span(
+      request_span,
       request_span.name .. " (proxy)",
-      { start_timestamp = timestamp,
-        child_of = request_span,
-      }
+      timestamp
     )
     zipkin.proxy_span:set_tag("span.kind", "client")
   end
@@ -113,18 +112,14 @@ if subsystem == "http" then
     local method = req.get_method()
     local forwarded_ip = kong.client.get_forwarded_ip()
 
-    local request_span = tracer:start_span(method, {
-      child_of = wire_context,
-      start_timestamp = ngx.req.start_time(),
-      tags = {
-        component = "kong",
-        ["span.kind"] = "server",
-        ["http.method"] = method,
-        ["http.path"] = req.get_path(),
-        [ip_tag(forwarded_ip)] = forwarded_ip,
-        ["peer.port"] = kong.client.get_forwarded_port(),
-      }
-    })
+    local request_span = tracer:start_span(wire_context, method, ngx.req.start_time())
+    request_span:set_tag("component", "kong")
+    request_span:set_tag("span.kind", "server")
+    request_span:set_tag("http.method", method)
+    request_span:set_tag("http.path", req.get_path())
+    request_span:set_tag(ip_tag(forwarded_ip), forwarded_ip)
+    request_span:set_tag("peer.port", kong.client.get_forwarded_port())
+
     ctx.zipkin = {
       tracer = tracer,
       wire_context = wire_context,
@@ -204,16 +199,12 @@ elseif subsystem == "stream" then
     local tracer = get_tracer(conf)
     local wire_context = nil
     local forwarded_ip = kong.client.get_forwarded_ip()
-    local request_span = tracer:start_span("kong.stream", {
-      child_of = wire_context,
-      start_timestamp = ngx.req.start_time(),
-      tags = {
-        component = "kong",
-        ["span.kind"] = "server",
-        [ip_tag(forwarded_ip)] = forwarded_ip,
-        ["peer.port"] = kong.client.get_forwarded_port(),
-      }
-    })
+    local request_span = tracer:start_span(wire_context, "kong.stream", ngx.req.start_time())
+    request_span:set_tag("component", "kong")
+    request_span:set_tag("span.kind", "server")
+    request_span:set_tag(ip_tag(forwarded_ip), forwarded_ip)
+    request_span:set_tag("peer.port", kong.client.get_forwarded_port())
+
     ctx.zipkin = {
       tracer = tracer,
       wire_context = wire_context,
@@ -283,10 +274,11 @@ function ZipkinLogHandler:log(conf)
     for i = 1, balancer_data.try_count do
       local try = balancer_tries[i]
       local name = fmt("%s (balancer try %d)", request_span.name, i)
-      local span = tracer:start_span(name, {
-        start_timestamp = try.balancer_start / 1000,
-        child_of = request_span,
-      })
+      local span = tracer:start_span(
+        request_span,
+        name,
+        try.balancer_start / 1000
+      )
       span:set_tag(ip_tag(try.ip), try.ip)
       span:set_tag("peer.port", try.port)
       span:set_tag("kong.balancer.try", i)
