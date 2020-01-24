@@ -6,18 +6,36 @@ You can find it documented in this OpenAPI spec:
 https://github.com/openzipkin/zipkin-api/blob/7e33e977/zipkin2-api.yaml#L280
 ]]
 
+local zipkin_span_context = require "kong.plugins.zipkin.span_context"
+
 local span_methods = {}
 local span_mt = {
   __index = span_methods,
 }
 
 local ngx_now = ngx.now
+local math_random = math.random
 
 
-local function new(context, name, start_timestamp)
-  assert(context, "missing context")
-  assert(type(name) == "string", "name should be a string")
-  assert(type(start_timestamp) == "number", "invalid starting timestamp")
+local function new(parent, name, start_timestamp, sample_ratio)
+  if parent ~= nil then
+    if type(parent.context) == "function" then -- get the context instead of the span, if given a span
+      parent = parent:context()
+    end
+  end
+
+  if start_timestamp == nil then
+    start_timestamp = ngx_now()
+  end
+
+  local context
+  if parent then
+    context = parent:child()
+  else
+    local should_sample = math_random() < sample_ratio
+    context = zipkin_span_context.new(nil, nil, nil, should_sample)
+  end
+
   return setmetatable({
     context_ = context,
     name = name,
@@ -30,6 +48,7 @@ local function new(context, name, start_timestamp)
     n_logs = 0,
   }, span_mt)
 end
+
 
 function span_methods:context()
   return self.context_
