@@ -10,9 +10,8 @@ local tracer_mt = {
   __index = tracer_methods,
 }
 
-local function new(reporter, sample_ratio)
+local function new(sample_ratio)
   return setmetatable({
-    reporter = reporter,
     sample_ratio = sample_ratio,
   }, tracer_mt)
 end
@@ -49,10 +48,6 @@ function tracer_methods:start_span(name, options)
     end
   end
   return span
-end
-
-function tracer_methods:report(span)
-  return self.reporter:report(span)
 end
 
 return {

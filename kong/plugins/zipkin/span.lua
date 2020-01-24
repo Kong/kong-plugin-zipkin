@@ -54,9 +54,6 @@ function span_methods:finish(finish_timestamp)
     assert(duration >= 0, "invalid finish timestamp")
     self.duration = duration
   end
-  if self.context_.should_sample then
-    self.tracer_:report(self)
-  end
   return true
 end
 

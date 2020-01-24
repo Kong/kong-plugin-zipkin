@@ -12,10 +12,7 @@ local zipkin_reporter_mt = {
 }
 
 
-local function new_zipkin_reporter(conf)
-  local http_endpoint = conf.http_endpoint
-  local default_service_name = conf.default_service_name
-  assert(type(http_endpoint) == "string", "invalid http endpoint")
+local function new(http_endpoint, default_service_name)
   return setmetatable({
     default_service_name = default_service_name,
     http_endpoint = http_endpoint,
@@ -35,6 +32,9 @@ local span_kind_map = {
 
 function zipkin_reporter_methods:report(span)
   local span_context = span:context()
+  if not span_context.should_sample then
+    return
+  end
 
   local zipkin_tags = {}
   for k, v in span:each_tag() do
@@ -155,5 +155,5 @@ end
 
 
 return {
-  new = new_zipkin_reporter,
+  new = new,
 }

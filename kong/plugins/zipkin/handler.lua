@@ -14,18 +14,22 @@ local ZipkinLogHandler = {
 }
 
 
-local tracer_cache = setmetatable({}, {__mode = "k"})
+local tracer_cache = setmetatable({}, { __mode = "k" })
+local reporter_cache = setmetatable({}, { __mode = "k" })
 
-local function new_tracer(conf)
-  local reporter = new_zipkin_reporter(conf)
-  local tracer = new_zipkin_tracer(reporter, conf.sample_ratio)
-  return tracer
+
+local function get_reporter(conf)
+  if reporter_cache[conf] == nil then
+    reporter_cache[conf] = new_zipkin_reporter(conf.http_endpoint,
+                                               conf.default_service_name)
+  end
+  return reporter_cache[conf]
 end
 
 
 local function get_tracer(conf)
   if tracer_cache[conf] == nil then
-    tracer_cache[conf] = new_tracer(conf)
+    tracer_cache[conf] = new_zipkin_tracer(conf.sample_ratio)
   end
   return tracer_cache[conf]
 end
@@ -232,6 +236,7 @@ function ZipkinLogHandler:log(conf)
   local zipkin = get_context(conf, ctx)
   local request_span = zipkin.request_span
   local proxy_span = get_or_add_proxy_span(zipkin, now)
+  local reporter = get_reporter(conf)
 
   local proxy_finish =
     ctx.KONG_BODY_FILTER_ENDED_AT and ctx.KONG_BODY_FILTER_ENDED_AT / 1000 or now
@@ -286,6 +291,7 @@ function ZipkinLogHandler:log(conf)
       tag_with_service_and_route(span)
 
       span:finish((try.balancer_start + try.balancer_latency) / 1000)
+      reporter:report(span)
     end
     proxy_span:set_tag("peer.hostname", balancer_data.hostname) -- could be nil
     if balancer_data.ip ~= nil then
@@ -308,11 +314,11 @@ function ZipkinLogHandler:log(conf)
   tag_with_service_and_route(proxy_span)
 
   proxy_span:finish(proxy_finish)
+  reporter:report(proxy_span)
   request_span:finish(now)
+  reporter:report(request_span)
 
-  local tracer = get_tracer(conf)
-  local zipkin_reporter = tracer.reporter -- XXX: not guaranteed by zipkin-lua?
-  local ok, err = ngx.timer.at(0, timer_log, zipkin_reporter)
+  local ok, err = ngx.timer.at(0, timer_log, reporter)
   if not ok then
     kong.log.err("failed to create timer: ", err)
   end
