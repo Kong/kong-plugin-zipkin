@@ -41,7 +41,7 @@ function tracer_methods:start_span(name, options)
     local should_sample = math_random() < self.sample_ratio
     context = zipkin_span_context.new(nil, nil, nil, should_sample)
   end
-  local span = zipkin_span.new(self, context, name, start_timestamp)
+  local span = zipkin_span.new(context, name, start_timestamp)
   if tags then
     for k, v in pairs(tags) do
       span:set_tag(k, v)

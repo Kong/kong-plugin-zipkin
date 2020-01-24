@@ -53,10 +53,14 @@ end
 -- adds the proxy span to the zipkin context, unless it already exists
 local function get_or_add_proxy_span(zipkin, timestamp)
   if not zipkin.proxy_span then
+    local tracer = zipkin.tracer
     local request_span = zipkin.request_span
-    zipkin.proxy_span = request_span:start_child_span(
+    zipkin.proxy_span = tracer:start_span(
       request_span.name .. " (proxy)",
-      timestamp)
+      { start_timestamp = timestamp,
+        child_of = request_span,
+      }
+    )
     zipkin.proxy_span:set_tag("span.kind", "client")
   end
   return zipkin.proxy_span
@@ -235,6 +239,7 @@ function ZipkinLogHandler:log(conf)
   local ctx = ngx.ctx
   local zipkin = get_context(conf, ctx)
   local request_span = zipkin.request_span
+  local tracer = zipkin.tracer
   local proxy_span = get_or_add_proxy_span(zipkin, now)
   local reporter = get_reporter(conf)
 
@@ -278,7 +283,10 @@ function ZipkinLogHandler:log(conf)
     for i = 1, balancer_data.try_count do
       local try = balancer_tries[i]
       local name = fmt("%s (balancer try %d)", request_span.name, i)
-      local span = request_span:start_child_span(name, try.balancer_start / 1000)
+      local span = tracer:start_span(name, {
+        start_timestamp = try.balancer_start / 1000,
+        child_of = request_span,
+      })
       span:set_tag(ip_tag(try.ip), try.ip)
       span:set_tag("peer.port", try.port)
       span:set_tag("kong.balancer.try", i)

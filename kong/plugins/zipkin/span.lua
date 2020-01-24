@@ -14,13 +14,11 @@ local span_mt = {
 local ngx_now = ngx.now
 
 
-local function new(tracer, context, name, start_timestamp)
-  assert(tracer, "missing tracer")
+local function new(context, name, start_timestamp)
   assert(context, "missing context")
   assert(type(name) == "string", "name should be a string")
   assert(type(start_timestamp) == "number", "invalid starting timestamp")
   return setmetatable({
-    tracer_ = tracer,
     context_ = context,
     name = name,
     timestamp = start_timestamp,
@@ -35,13 +33,6 @@ end
 
 function span_methods:context()
   return self.context_
-end
-
-function span_methods:start_child_span(name, start_timestamp)
-  return self.tracer_:start_span(name, {
-    start_timestamp = start_timestamp,
-    child_of = self,
-  })
 end
 
 function span_methods:finish(finish_timestamp)
