@@ -21,7 +21,6 @@ dependencies = {
 build = {
   type = "builtin";
   modules = {
-    ["kong.plugins.zipkin.extractor"] = "kong/plugins/zipkin/extractor.lua";
     ["kong.plugins.zipkin.handler"] = "kong/plugins/zipkin/handler.lua";
     ["kong.plugins.zipkin.reporter"] = "kong/plugins/zipkin/reporter.lua";
     ["kong.plugins.zipkin.span"] = "kong/plugins/zipkin/span.lua";

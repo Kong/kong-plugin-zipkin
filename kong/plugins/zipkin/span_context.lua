@@ -20,12 +20,6 @@ local span_context_mt = {
   __index = span_context_methods,
 }
 
-local baggage_mt = {
-  __newindex = function()
-    error("attempt to set immutable baggage")
-  end,
-}
-
 -- Public constructor
 local function new(trace_id, span_id, parent_id, should_sample, baggage)
   if trace_id == nil then
@@ -40,15 +34,6 @@ local function new(trace_id, span_id, parent_id, should_sample, baggage)
   end
   if parent_id ~= nil then
     assert(type(parent_id) == "string", "invalid parent id")
-  end
-  if baggage then
-    local new_baggage = {}
-    for key, value in pairs(baggage) do
-      assert(type(key) == "string", "invalid baggage key")
-      assert(type(value) == "string", "invalid baggage value")
-      new_baggage[key] = value
-    end
-    baggage = setmetatable(new_baggage, baggage_mt)
   end
   return setmetatable({
     trace_id = trace_id,
