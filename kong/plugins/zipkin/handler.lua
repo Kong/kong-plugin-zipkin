@@ -200,7 +200,7 @@ if subsystem == "http" then
   end
 
 
-  function ZipkinLogHandler:rewrite(conf)
+  function ZipkinLogHandler:rewrite(conf) -- luacheck: ignore 212
     local ctx = ngx.ctx
     local zipkin = get_context(conf, ctx)
     -- note: rewrite is logged on the request_span, not on the proxy span
@@ -209,7 +209,7 @@ if subsystem == "http" then
   end
 
 
-  function ZipkinLogHandler:access(conf)
+  function ZipkinLogHandler:access(conf) -- luacheck: ignore 212
     local ctx = ngx.ctx
     local zipkin = get_context(conf, ctx)
 
@@ -237,7 +237,7 @@ if subsystem == "http" then
   end
 
 
-  function ZipkinLogHandler:header_filter(conf)
+  function ZipkinLogHandler:header_filter(conf) -- luacheck: ignore 212
     local ctx = ngx.ctx
     local zipkin = get_context(conf, ctx)
     local header_filter_start =
@@ -249,7 +249,7 @@ if subsystem == "http" then
   end
 
 
-  function ZipkinLogHandler:body_filter(conf)
+  function ZipkinLogHandler:body_filter(conf) -- luacheck: ignore 212
     local ctx = ngx.ctx
     local zipkin = get_context(conf, ctx)
 
@@ -284,7 +284,7 @@ elseif subsystem == "stream" then
   end
 
 
-  function ZipkinLogHandler:preread(conf)
+  function ZipkinLogHandler:preread(conf) -- luacheck: ignore 212
     local ctx = ngx.ctx
     local zipkin = get_context(conf, ctx)
     local preread_start = ctx.KONG_PREREAD_START / 1000
@@ -295,7 +295,7 @@ elseif subsystem == "stream" then
 end
 
 
-function ZipkinLogHandler:log(conf)
+function ZipkinLogHandler:log(conf) -- luacheck: ignore 212
   local now = ngx.now()
   local ctx = ngx.ctx
   local zipkin = get_context(conf, ctx)
