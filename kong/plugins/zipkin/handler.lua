@@ -1,5 +1,4 @@
 local new_zipkin_reporter = require "kong.plugins.zipkin.reporter".new
-local new_span_context = require "kong.plugins.zipkin.span_context".new
 local new_span = require "kong.plugins.zipkin.span".new
 local to_hex = require "resty.string".to_hex
 
@@ -15,6 +14,7 @@ local ZipkinLogHandler = {
 
 local reporter_cache = setmetatable({}, { __mode = "k" })
 
+local math_random = math.random
 
 local baggage_mt = {
   __newindex = function()
@@ -36,7 +36,7 @@ local function from_hex(str)
 end
 
 
-local function create_http_context(headers)
+local function parse_http_headers(headers)
   local warn = kong.log.warn
   -- X-B3-Sampled: if an upstream decided to sample this request, we do too.
   local should_sample = headers["x-b3-sampled"]
@@ -96,8 +96,7 @@ local function create_http_context(headers)
   end
   setmetatable(baggage, baggage_mt)
 
-
-  return new_span_context(trace_id, span_id, parent_id, should_sample, baggage)
+  return trace_id, span_id, parent_id, should_sample, baggage
 end
 
 
@@ -129,8 +128,7 @@ end
 local function get_or_add_proxy_span(zipkin, timestamp)
   if not zipkin.proxy_span then
     local request_span = zipkin.request_span
-    zipkin.proxy_span = new_span(
-      request_span,
+    zipkin.proxy_span = request_span:new_child(
       request_span.name .. " (proxy)",
       timestamp
     )
@@ -181,12 +179,22 @@ end
 if subsystem == "http" then
   initialize_request = function(conf, ctx)
     local req = kong.request
-    local wire_context = create_http_context(req.get_headers())
+
+    local trace_id, span_id, parent_id, should_sample, baggage =
+      parse_http_headers(req.get_headers())
     local method = req.get_method()
     local forwarded_ip = kong.client.get_forwarded_ip()
 
+    if should_sample == nil then
+      should_sample = math_random() < conf.sample_ratio
+    end
+
     local request_span = new_span(
-      wire_context, method, ngx.req.start_time(), conf.sample_ratio)
+      method,
+      ngx.req.start_time(),
+      should_sample,
+      trace_id, span_id, parent_id,
+      baggage)
     request_span:set_tag("component", "kong")
     request_span:set_tag("span.kind", "server")
     request_span:set_tag("http.method", method)
@@ -195,7 +203,6 @@ if subsystem == "http" then
     request_span:set_tag("peer.port", kong.client.get_forwarded_port())
 
     ctx.zipkin = {
-      wire_context = wire_context,
       request_span = request_span,
       proxy_span = nil,
       header_filter_finished = false,
@@ -219,7 +226,7 @@ if subsystem == "http" then
     get_or_add_proxy_span(zipkin, ctx.KONG_ACCESS_START / 1000)
 
     -- Want to send headers to upstream
-    local proxy_span = zipkin.proxy_span:context()
+    local proxy_span = zipkin.proxy_span
     local set_header = kong.service.request.set_header
     -- We want to remove headers if already present
     set_header("x-b3-traceid", to_hex(proxy_span.trace_id))
@@ -269,20 +276,18 @@ if subsystem == "http" then
 elseif subsystem == "stream" then
 
   initialize_request = function(conf, ctx)
-    local wire_context = nil
     local forwarded_ip = kong.client.get_forwarded_ip()
     local request_span = new_span(
-      wire_context,
       "kong.stream",
       ngx.req.start_time(),
-      conf.sample_ratio)
+      math_random() < conf.sample_ratio
+    )
     request_span:set_tag("component", "kong")
     request_span:set_tag("span.kind", "server")
     request_span:set_tag(ip_tag(forwarded_ip), forwarded_ip)
     request_span:set_tag("peer.port", kong.client.get_forwarded_port())
 
     ctx.zipkin = {
-      wire_context = wire_context,
       request_span = request_span,
       proxy_span = nil,
     }
@@ -348,12 +353,7 @@ function ZipkinLogHandler:log(conf)
     for i = 1, balancer_data.try_count do
       local try = balancer_tries[i]
       local name = fmt("%s (balancer try %d)", request_span.name, i)
-      local span = new_span(
-        request_span,
-        name,
-        try.balancer_start / 1000,
-        conf.sample_ratio
-      )
+      local span = request_span:new_child(name, try.balancer_start / 1000)
       span:set_tag(ip_tag(try.ip), try.ip)
       span:set_tag("peer.port", try.port)
       span:set_tag("kong.balancer.try", i)

@@ -31,8 +31,7 @@ local span_kind_map = {
 
 
 function zipkin_reporter_methods:report(span)
-  local span_context = span:context()
-  if not span_context.should_sample then
+  if not span.should_sample then
     return
   end
 
@@ -106,10 +105,10 @@ function zipkin_reporter_methods:report(span)
   end
 
   local zipkin_span = {
-    traceId = to_hex(span_context.trace_id),
+    traceId = to_hex(span.trace_id),
     name = span.name,
-    parentId = span_context.parent_id and to_hex(span_context.parent_id) or nil,
-    id = to_hex(span_context.span_id),
+    parentId = span.parent_id and to_hex(span.parent_id) or nil,
+    id = to_hex(span.span_id),
     kind = span_kind_map[span_kind],
     timestamp = floor(span.timestamp * 1000000),
     duration = floor(span.duration * 1000000), -- zipkin wants integer

@@ -6,7 +6,8 @@ You can find it documented in this OpenAPI spec:
 https://github.com/openzipkin/zipkin-api/blob/7e33e977/zipkin2-api.yaml#L280
 ]]
 
-local zipkin_span_context = require "kong.plugins.zipkin.span_context"
+local utils = require "kong.tools.utils"
+local rand_bytes = utils.get_rand_bytes
 
 local span_methods = {}
 local span_mt = {
@@ -14,45 +15,77 @@ local span_mt = {
 }
 
 local ngx_now = ngx.now
-local math_random = math.random
 
 
-local function new(parent, name, start_timestamp, sample_ratio)
-  if parent ~= nil then
-    if type(parent.context) == "function" then -- get the context instead of the span, if given a span
-      parent = parent:context()
-    end
+local baggage_mt = {
+  __newindex = function()
+    error("attempt to set immutable baggage")
+  end,
+}
+
+
+local function generate_trace_id()
+  return rand_bytes(16)
+end
+
+
+local function generate_span_id()
+  return rand_bytes(8)
+end
+
+
+local function new(name, start_timestamp,
+                   should_sample, trace_id, span_id, parent_id, baggage)
+  if trace_id == nil then
+    trace_id = generate_trace_id()
+  else
+    assert(type(trace_id) == "string", "invalid trace id")
+  end
+
+  if span_id == nil then
+    span_id = generate_span_id()
+  else
+    assert(type(span_id) == "string", "invalid span id")
+  end
+
+  if parent_id ~= nil then
+    assert(type(parent_id) == "string", "invalid parent id")
+  end
+
+  if baggage then
+    setmetatable(baggage, baggage_mt)
   end
 
   if start_timestamp == nil then
     start_timestamp = ngx_now()
   end
 
-  local context
-  if parent then
-    context = parent:child()
-  else
-    local should_sample = math_random() < sample_ratio
-    context = zipkin_span_context.new(nil, nil, nil, should_sample)
-  end
-
   return setmetatable({
-    context_ = context,
+    trace_id = trace_id,
+    span_id = span_id,
+    parent_id = parent_id,
     name = name,
     timestamp = start_timestamp,
-    duration = nil,
-    -- Avoid allocations until needed
-    baggage = nil,
-    tags = nil,
-    logs = nil,
+    should_sample = should_sample,
+    baggage = baggage,
     n_logs = 0,
   }, span_mt)
 end
 
 
-function span_methods:context()
-  return self.context_
+function span_methods:new_child(name, start_timestamp)
+  return new(
+    name,
+    start_timestamp,
+    self.should_sample,
+    self.trace_id,
+    generate_span_id(),
+    self.span_id,
+    self.sample_ratio,
+    self.baggage
+  )
 end
+
 
 function span_methods:finish(finish_timestamp)
   assert(self.duration == nil, "span already finished")
@@ -66,6 +99,7 @@ function span_methods:finish(finish_timestamp)
   end
   return true
 end
+
 
 function span_methods:set_tag(key, value)
   assert(type(key) == "string", "invalid tag key")
@@ -86,6 +120,7 @@ function span_methods:set_tag(key, value)
   return true
 end
 
+
 function span_methods:get_tag(key)
   assert(type(key) == "string", "invalid tag key")
   local tags = self.tags
@@ -96,11 +131,13 @@ function span_methods:get_tag(key)
   end
 end
 
+
 function span_methods:each_tag()
   local tags = self.tags
   if tags == nil then return function() end end
   return next, tags
 end
+
 
 function span_methods:log(key, value, timestamp)
   assert(type(key) == "string", "invalid log key")
@@ -129,6 +166,14 @@ function span_methods:log(key, value, timestamp)
   end
   return true
 end
+
+
+function span_methods:each_baggage_item()
+  local baggage = self.baggage
+  if baggage == nil then return function() end end
+  return next, baggage
+end
+
 
 return {
   new = new,
