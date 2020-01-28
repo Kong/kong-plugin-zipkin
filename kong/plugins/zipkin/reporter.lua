@@ -22,14 +22,6 @@ local function new(http_endpoint, default_service_name)
 end
 
 
-local span_kind_map = {
-  client = "CLIENT",
-  server = "SERVER",
-  producer = "PRODUCER",
-  consumer = "CONSUMER",
-}
-
-
 function zipkin_reporter_methods:report(span)
   if not span.should_sample then
     return
@@ -46,14 +38,6 @@ function zipkin_reporter_methods:report(span)
       zipkin_tags[k] = tostring(v)
     end
   end
-
-  local span_kind = zipkin_tags["span.kind"]
-  zipkin_tags["span.kind"] = nil
-
-  -- rename component tag to lc ("local component")
-  local component = zipkin_tags["component"]
-  zipkin_tags["component"] = nil
-  zipkin_tags["lc"] = component
 
   local localEndpoint = {
     serviceName = "kong"
@@ -109,7 +93,7 @@ function zipkin_reporter_methods:report(span)
     name = span.name,
     parentId = span.parent_id and to_hex(span.parent_id) or nil,
     id = to_hex(span.span_id),
-    kind = span_kind_map[span_kind],
+    kind = span.kind,
     timestamp = floor(span.timestamp * 1000000),
     duration = floor(span.duration * 1000000), -- zipkin wants integer
     -- shared = nil, -- We don't use shared spans (server reuses client generated spanId)

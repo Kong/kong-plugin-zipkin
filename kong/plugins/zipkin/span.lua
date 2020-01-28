@@ -34,8 +34,10 @@ local function generate_span_id()
 end
 
 
-local function new(name, start_timestamp,
+local function new(kind, name, start_timestamp,
                    should_sample, trace_id, span_id, parent_id, baggage)
+  assert(kind == "SERVER" or kind == "CLIENT", "invalid kind")
+
   if trace_id == nil then
     trace_id = generate_trace_id()
   else
@@ -61,6 +63,7 @@ local function new(name, start_timestamp,
   end
 
   return setmetatable({
+    kind = kind,
     trace_id = trace_id,
     span_id = span_id,
     parent_id = parent_id,
@@ -73,8 +76,9 @@ local function new(name, start_timestamp,
 end
 
 
-function span_methods:new_child(name, start_timestamp)
+function span_methods:new_child(kind, name, start_timestamp)
   return new(
+    kind,
     name,
     start_timestamp,
     self.should_sample,

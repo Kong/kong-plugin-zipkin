@@ -129,10 +129,10 @@ local function get_or_add_proxy_span(zipkin, timestamp)
   if not zipkin.proxy_span then
     local request_span = zipkin.request_span
     zipkin.proxy_span = request_span:new_child(
+      "CLIENT",
       request_span.name .. " (proxy)",
       timestamp
     )
-    zipkin.proxy_span:set_tag("span.kind", "client")
   end
   return zipkin.proxy_span
 end
@@ -190,13 +190,13 @@ if subsystem == "http" then
     end
 
     local request_span = new_span(
+      "SERVER",
       method,
       ngx.req.start_time(),
       should_sample,
       trace_id, span_id, parent_id,
       baggage)
-    request_span:set_tag("component", "kong")
-    request_span:set_tag("span.kind", "server")
+    request_span:set_tag("lc", "kong")
     request_span:set_tag("http.method", method)
     request_span:set_tag("http.path", req.get_path())
     request_span:set_tag(ip_tag(forwarded_ip), forwarded_ip)
@@ -279,11 +279,11 @@ elseif subsystem == "stream" then
     local forwarded_ip = kong.client.get_forwarded_ip()
     local request_span = new_span(
       "kong.stream",
+      "SERVER",
       ngx.req.start_time(),
       math_random() < conf.sample_ratio
     )
-    request_span:set_tag("component", "kong")
-    request_span:set_tag("span.kind", "server")
+    request_span:set_tag("lc", "kong")
     request_span:set_tag(ip_tag(forwarded_ip), forwarded_ip)
     request_span:set_tag("peer.port", kong.client.get_forwarded_port())
 
@@ -353,7 +353,7 @@ function ZipkinLogHandler:log(conf)
     for i = 1, balancer_data.try_count do
       local try = balancer_tries[i]
       local name = fmt("%s (balancer try %d)", request_span.name, i)
-      local span = request_span:new_child(name, try.balancer_start / 1000)
+      local span = request_span:new_child("CLIENT", name, try.balancer_start / 1000)
       span:set_tag(ip_tag(try.ip), try.ip)
       span:set_tag("peer.port", try.port)
       span:set_tag("kong.balancer.try", i)
