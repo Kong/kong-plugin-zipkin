@@ -10,6 +10,21 @@ local zipkin_reporter_mt = {
   __index = zipkin_reporter_methods,
 }
 
+local localEndpoint = {
+  serviceName = "kong"
+}
+
+-- Utility function to set either ipv4 or ipv6 tags
+-- nginx apis don't have a flag to indicate whether an address is v4 or v6
+local function ip_kind(addr)
+  -- use the presence of ":" to signal v6 (v4 has no colons)
+  if addr:find(":", 1, true) then
+    return "ipv6"
+  else
+    return "ipv4"
+  end
+end
+
 
 local function new(http_endpoint, default_service_name)
   return setmetatable({
@@ -38,30 +53,21 @@ function zipkin_reporter_methods:report(span)
     end
   end
 
-  local localEndpoint = {
-    serviceName = "kong"
-  }
-
   local remoteEndpoint do
-    local serviceName = zipkin_tags["peer.service"] or
-                        self.default_service_name -- can be nil
-
-    local peer_port = span:get_tag "peer.port" -- get as number
-    if peer_port or serviceName then
+    local serviceName = span.service_name or self.default_service_name -- can be nil
+    if span.port or serviceName then
       remoteEndpoint = {
         serviceName = serviceName,
-        ipv4 = zipkin_tags["peer.ipv4"],
-        ipv6 = zipkin_tags["peer.ipv6"],
-        port = peer_port,
+        port = span.port,
       }
-      zipkin_tags["peer.service"] = nil
-      zipkin_tags["peer.port"] = nil
-      zipkin_tags["peer.ipv4"] = nil
-      zipkin_tags["peer.ipv6"] = nil
+      if span.ip then
+        remoteEndpoint[ip_kind(span.ip)] = span.ip
+      end
     else
       remoteEndpoint = cjson.null
     end
   end
+
 
   if not next(zipkin_tags) then
     zipkin_tags = nil

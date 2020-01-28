@@ -118,7 +118,7 @@ local function tag_with_service_and_route(span)
       span:set_tag("kong.route", route.id)
     end
     if type(service.name) == "string" then
-      span:set_tag("peer.service", service.name)
+      span.service_name = service.name
     end
   end
 end
@@ -151,17 +151,6 @@ local function timer_log(premature, reporter)
 end
 
 
--- Utility function to set either ipv4 or ipv6 tags
--- nginx apis don't have a flag to indicate whether an address is v4 or v6
-local function ip_tag(addr)
-  -- use the presence of "." to signal v4 (v6 uses ":")
-  if addr:find(".", 1, true) then
-    return "peer.ipv4"
-  else
-    return "peer.ipv6"
-  end
-end
-
 
 local initialize_request
 
@@ -183,7 +172,6 @@ if subsystem == "http" then
     local trace_id, span_id, parent_id, should_sample, baggage =
       parse_http_headers(req.get_headers())
     local method = req.get_method()
-    local forwarded_ip = kong.client.get_forwarded_ip()
 
     if should_sample == nil then
       should_sample = math_random() < conf.sample_ratio
@@ -196,11 +184,13 @@ if subsystem == "http" then
       should_sample,
       trace_id, span_id, parent_id,
       baggage)
+
+    request_span.ip = kong.client.get_forwarded_ip()
+    request_span.port = kong.client.get_forwarded_port()
+
     request_span:set_tag("lc", "kong")
     request_span:set_tag("http.method", method)
     request_span:set_tag("http.path", req.get_path())
-    request_span:set_tag(ip_tag(forwarded_ip), forwarded_ip)
-    request_span:set_tag("peer.port", kong.client.get_forwarded_port())
 
     ctx.zipkin = {
       request_span = request_span,
@@ -276,16 +266,16 @@ if subsystem == "http" then
 elseif subsystem == "stream" then
 
   initialize_request = function(conf, ctx)
-    local forwarded_ip = kong.client.get_forwarded_ip()
     local request_span = new_span(
       "kong.stream",
       "SERVER",
       ngx.req.start_time(),
       math_random() < conf.sample_ratio
     )
+    request_span.ip = kong.client.get_forwarded_ip()
+    request_span.port = kong.client.get_forwarded_port()
+
     request_span:set_tag("lc", "kong")
-    request_span:set_tag(ip_tag(forwarded_ip), forwarded_ip)
-    request_span:set_tag("peer.port", kong.client.get_forwarded_port())
 
     ctx.zipkin = {
       request_span = request_span,
@@ -354,8 +344,9 @@ function ZipkinLogHandler:log(conf)
       local try = balancer_tries[i]
       local name = fmt("%s (balancer try %d)", request_span.name, i)
       local span = request_span:new_child("CLIENT", name, try.balancer_start / 1000)
-      span:set_tag(ip_tag(try.ip), try.ip)
-      span:set_tag("peer.port", try.port)
+      span.ip = try.ip
+      span.port = try.port
+
       span:set_tag("kong.balancer.try", i)
       if i < balancer_data.try_count then
         span:set_tag("error", true)
@@ -369,10 +360,8 @@ function ZipkinLogHandler:log(conf)
       reporter:report(span)
     end
     proxy_span:set_tag("peer.hostname", balancer_data.hostname) -- could be nil
-    if balancer_data.ip ~= nil then
-       proxy_span:set_tag(ip_tag(balancer_data.ip), balancer_data.ip)
-    end
-    proxy_span:set_tag("peer.port", balancer_data.port)
+    proxy_span.ip   = balancer_data.ip
+    proxy_span.port = balancer_data.port
   end
 
   if subsystem == "http" then
