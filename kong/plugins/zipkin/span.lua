@@ -14,6 +14,8 @@ local span_mt = {
   __index = span_methods,
 }
 
+local floor = math.floor
+
 local ngx_now = ngx.now
 
 
@@ -143,30 +145,20 @@ function span_methods:each_tag()
 end
 
 
-function span_methods:log(key, value, timestamp)
-  assert(type(key) == "string", "invalid log key")
-  -- `value` is allowed to be anything.
-  if timestamp == nil then
-    timestamp = ngx_now()
-  else
-    assert(type(timestamp) == "number", "invalid timestamp for log")
-  end
+function span_methods:annotate(value, timestamp)
+  assert(type(value) == "string", "invalid annotation value")
+  timestamp = timestamp or ngx_now()
 
-  local log = {
-    key = key,
+  local annotation = {
     value = value,
-    timestamp = timestamp,
+    timestamp = floor(timestamp),
   }
 
-  local logs = self.logs
-  if logs then
-    local i = self.n_logs + 1
-    logs[i] = log
-    self.n_logs = i
+  local annotations = self.annotations
+  if annotations then
+    annotations[#annotations + 1] = annotation
   else
-    logs = { log }
-    self.logs = logs
-    self.n_logs = 1
+    self.annotations = { annotation }
   end
   return true
 end

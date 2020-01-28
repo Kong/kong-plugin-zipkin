@@ -215,7 +215,7 @@ if subsystem == "http" then
     local zipkin = get_context(conf, ctx)
     -- note: rewrite is logged on the request_span, not on the proxy span
     local rewrite_start = ctx.KONG_REWRITE_START / 1000
-    zipkin.request_span:log("kong.rewrite", "start", rewrite_start)
+    zipkin.request_span:annotate("krs", rewrite_start)
   end
 
 
@@ -255,7 +255,7 @@ if subsystem == "http" then
       or ngx.now()
 
     local proxy_span = get_or_add_proxy_span(zipkin, header_filter_start)
-    proxy_span:log("kong.header_filter", "start", header_filter_start)
+    proxy_span:annotate("khs", header_filter_start)
   end
 
 
@@ -267,9 +267,9 @@ if subsystem == "http" then
     if not zipkin.header_filter_finished then
       local now = ngx.now()
 
-      zipkin.proxy_span:log("kong.header_filter", "finish", now)
+      zipkin.proxy_span:annotate("khf", now)
       zipkin.header_filter_finished = true
-      zipkin.proxy_span:log("kong.body_filter", "start", now)
+      zipkin.proxy_span:annotate("kbs", now)
     end
   end
 
@@ -300,7 +300,7 @@ elseif subsystem == "stream" then
     local preread_start = ctx.KONG_PREREAD_START / 1000
 
     local proxy_span = get_or_add_proxy_span(zipkin, preread_start)
-    proxy_span:log("kong.preread", "start", preread_start)
+    proxy_span:annotate("kps", preread_start)
   end
 end
 
@@ -319,7 +319,7 @@ function ZipkinLogHandler:log(conf)
   if ctx.KONG_REWRITE_TIME then
     -- note: rewrite is logged on the request span, not on the proxy span
     local rewrite_finish = (ctx.KONG_REWRITE_START + ctx.KONG_REWRITE_TIME) / 1000
-    zipkin.request_span:log("kong.rewrite", "finish", rewrite_finish)
+    zipkin.request_span:annotate("krf", rewrite_finish)
   end
 
   if subsystem == "http" then
@@ -328,23 +328,23 @@ function ZipkinLogHandler:log(conf)
     -- requests which are not matched by any route
     -- but we still want to know when the access phase "started"
     local access_start = ctx.KONG_ACCESS_START / 1000
-    proxy_span:log("kong.access", "start", access_start)
+    proxy_span:annotate("kas", access_start)
 
     local access_finish =
       ctx.KONG_ACCESS_ENDED_AT and ctx.KONG_ACCESS_ENDED_AT / 1000 or proxy_finish
-    proxy_span:log("kong.access", "finish", access_finish)
+    proxy_span:annotate("kaf", access_finish)
 
     if not zipkin.header_filter_finished then
-      proxy_span:log("kong.header_filter", "finish", now)
+      proxy_span:annotate("khf", now)
       zipkin.header_filter_finished = true
     end
 
-    proxy_span:log("kong.body_filter", "finish", now)
+    proxy_span:annotate("kbf", now)
 
   else
     local preread_finish =
       ctx.KONG_PREREAD_ENDED_AT and ctx.KONG_PREREAD_ENDED_AT / 1000 or proxy_finish
-    proxy_span:log("kong.preread", "finish", preread_finish)
+    proxy_span:annotate("kpf", preread_finish)
   end
 
   local balancer_data = ctx.balancer_data
