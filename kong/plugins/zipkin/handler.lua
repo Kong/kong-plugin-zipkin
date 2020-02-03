@@ -4,6 +4,7 @@ local to_hex = require "resty.string".to_hex
 
 local subsystem = ngx.config.subsystem
 local fmt = string.format
+local char = string.char
 
 local ZipkinLogHandler = {
   VERSION = "0.2.1",
@@ -18,13 +19,13 @@ local math_random = math.random
 
 local baggage_mt = {
   __newindex = function()
-    error("attempt to set immutable baggage")
+    error("attempt to set immutable baggage", 2)
   end,
 }
 
 
 local function hex_to_char(c)
-  return string.char(tonumber(c, 16))
+  return char(tonumber(c, 16))
 end
 
 
