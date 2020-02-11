@@ -28,6 +28,7 @@ local function gen_trace_id()
   return to_hex(utils.get_rand_bytes(16))
 end
 
+
 local function gen_span_id()
   return to_hex(utils.get_rand_bytes(8))
 end
@@ -39,6 +40,18 @@ describe("integration tests with zipkin server [#" .. strategy .. "]", function(
   local route, grpc_route
   local zipkin_client
   local proxy_client
+
+
+  local function wait_for_spans(trace_id, number_of_spans)
+    local spans = {}
+    helpers.wait_until(function()
+      local res = assert(zipkin_client:get("/api/v2/trace/" .. trace_id))
+      spans = cjson.decode(assert.response(res).has.status(200))
+      return #spans == number_of_spans
+    end)
+    return utils.unpack(spans)
+  end
+
 
   -- the following assertions should be true on any span list, even in error mode
   local function assert_span_invariants(request_span, proxy_span, expected_name, trace_id)
@@ -163,14 +176,7 @@ describe("integration tests with zipkin server [#" .. strategy .. "]", function(
     })
     assert.response(r).has.status(200)
 
-    local spans
-    helpers.wait_until(function()
-      local res = assert(zipkin_client:get("/api/v2/trace/" .. trace_id))
-      spans = cjson.decode(assert.response(res).has.status(200))
-      return #spans == 3
-    end)
-
-    local balancer_span, proxy_span, request_span = spans[1], spans[2], spans[3]
+    local balancer_span, proxy_span, request_span = wait_for_spans(trace_id, 3)
     -- common assertions for request_span and proxy_span
     assert_span_invariants(request_span, proxy_span, "get", trace_id)
 
@@ -241,14 +247,7 @@ describe("integration tests with zipkin server [#" .. strategy .. "]", function(
     assert.truthy(ok)
     assert.truthy(resp)
 
-    local spans
-    helpers.wait_until(function()
-      local res = assert(zipkin_client:get("/api/v2/trace/" .. trace_id))
-      spans = cjson.decode(assert.response(res).has.status(200))
-      return #spans == 3
-    end)
-
-    local balancer_span, proxy_span, request_span = spans[1], spans[2], spans[3]
+    local balancer_span, proxy_span, request_span = wait_for_spans(trace_id, 3)
     -- common assertions for request_span and proxy_span
     assert_span_invariants(request_span, proxy_span, "post", trace_id)
 
@@ -317,14 +316,7 @@ describe("integration tests with zipkin server [#" .. strategy .. "]", function(
     })
     assert.response(r).has.status(404)
 
-    local spans
-    helpers.wait_until(function()
-      local res = assert(zipkin_client:get("/api/v2/trace/" .. trace_id))
-      spans = cjson.decode(assert.response(res).has.status(200))
-      return #spans == 2
-    end)
-
-    local proxy_span, request_span = spans[1], spans[2]
+    local proxy_span, request_span = wait_for_spans(trace_id, 2)
 
     -- common assertions for request_span and proxy_span
     assert_span_invariants(request_span, proxy_span, "get", trace_id)
@@ -362,16 +354,10 @@ describe("integration tests with zipkin server [#" .. strategy .. "]", function(
     })
     assert.response(r).has.status(404)
 
-    local spans
-    helpers.wait_until(function()
-      local res = assert(zipkin_client:get("/api/v2/trace/" .. trace_id))
-      spans = cjson.decode(assert.response(res).has.status(200))
-      return #spans == 2
-    end)
+    local proxy_span, request_span = wait_for_spans(trace_id, 2)
 
-    for _, v in ipairs(spans) do
-      assert.same(trace_id, v.traceId)
-    end
+    assert.equals(trace_id, proxy_span.traceId)
+    assert.equals(trace_id, request_span.traceId)
   end)
 
   describe("b3 single header propagation", function()
@@ -388,14 +374,7 @@ describe("integration tests with zipkin server [#" .. strategy .. "]", function(
       })
       assert.response(r).has.status(200)
 
-      local spans
-      helpers.wait_until(function()
-        local res = assert(zipkin_client:get("/api/v2/trace/" .. trace_id))
-        spans = cjson.decode(assert.response(res).has.status(200))
-        return #spans == 3
-      end)
-
-      local balancer_span, proxy_span, request_span = spans[1], spans[2], spans[3]
+      local balancer_span, proxy_span, request_span = wait_for_spans(trace_id, 3)
 
       assert.equals(trace_id, request_span.traceId)
       assert.equals(span_id, request_span.id)
@@ -422,14 +401,7 @@ describe("integration tests with zipkin server [#" .. strategy .. "]", function(
       })
       assert.response(r).has.status(200)
 
-      local spans
-      helpers.wait_until(function()
-        local res = assert(zipkin_client:get("/api/v2/trace/" .. trace_id))
-        spans = cjson.decode(assert.response(res).has.status(200))
-        return #spans == 3
-      end)
-
-      local balancer_span, proxy_span, request_span = spans[1], spans[2], spans[3]
+      local balancer_span, proxy_span, request_span = wait_for_spans(trace_id, 3)
 
       assert.equals(trace_id, request_span.traceId)
       assert.equals(span_id, request_span.id)
@@ -456,14 +428,7 @@ describe("integration tests with zipkin server [#" .. strategy .. "]", function(
       })
       assert.response(r).has.status(200)
 
-      local spans
-      helpers.wait_until(function()
-        local res = assert(zipkin_client:get("/api/v2/trace/" .. trace_id))
-        spans = cjson.decode(assert.response(res).has.status(200))
-        return #spans == 3
-      end)
-
-      local balancer_span, proxy_span, request_span = spans[1], spans[2], spans[3]
+      local balancer_span, proxy_span, request_span = wait_for_spans(trace_id, 3)
 
       assert.equals(trace_id, request_span.traceId)
       assert.equals(span_id, request_span.id)
@@ -488,14 +453,7 @@ describe("integration tests with zipkin server [#" .. strategy .. "]", function(
       })
       assert.response(r).has.status(404)
 
-      local spans
-      helpers.wait_until(function()
-        local res = assert(zipkin_client:get("/api/v2/trace/" .. trace_id))
-        spans = cjson.decode(assert.response(res).has.status(200))
-        return #spans == 2
-      end)
-
-      local proxy_span, request_span = spans[1], spans[2]
+      local proxy_span, request_span = wait_for_spans(trace_id, 2)
 
       assert.equals(trace_id, request_span.traceId)
       assert.equals(span_id, request_span.id)

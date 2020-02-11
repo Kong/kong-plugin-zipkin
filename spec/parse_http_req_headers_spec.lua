@@ -3,9 +3,6 @@ local parse_http_req_headers = require "kong.plugins.zipkin.parse_http_req_heade
 local to_hex = require "resty.string".to_hex
 
 local fmt  = string.format
-local char = string.char
-local gsub = string.gsub
-
 
 local function to_hex_first_3(arr)
   return { to_hex(arr[1]),
@@ -175,13 +172,13 @@ describe("zipkin header parsing", function()
         assert.same({}, t)
         assert.spy(warn).called_with("b3 single header invalid; ignoring.")
 
-        local b3 = fmt("%s-%s-%s-%s", trace_id, span_id, "d", too_short_id)
-        local t  = { parse_http_req_headers({ b3 = b3 }) }
+        b3 = fmt("%s-%s-%s-%s", trace_id, span_id, "d", too_short_id)
+        t  = { parse_http_req_headers({ b3 = b3 }) }
         assert.same({}, t)
         assert.spy(warn).called_with("b3 single header invalid; ignoring.")
 
-        local b3 = fmt("%s-%s-%s-%s", trace_id, span_id, "d", too_long_id)
-        local t  = { parse_http_req_headers({ b3 = b3 }) }
+        b3 = fmt("%s-%s-%s-%s", trace_id, span_id, "d", too_long_id)
+        t  = { parse_http_req_headers({ b3 = b3 }) }
         assert.same({}, t)
         assert.spy(warn).called_with("b3 single header invalid; ignoring.")
       end)
