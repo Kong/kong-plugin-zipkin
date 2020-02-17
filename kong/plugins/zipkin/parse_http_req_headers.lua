@@ -13,6 +13,7 @@ local baggage_mt = {
 local B3_SINGLE_PATTERN =
   "^(%x+)%-(%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x)%-?([01d]?)%-?(%x*)$"
 
+local W3C_TRACECONTEXT_PATTERN = "^(00)-(%x+)-(%x+)-(%d%d)$"
 
 local function hex_to_char(c)
   return char(tonumber(c, 16))
@@ -165,9 +166,68 @@ local function parse_zipkin_b3_headers(headers)
   return trace_id, span_id, parent_id, should_sample
 end
 
+local function parse_w3c_trace_context_headers(headers)
+  local version, trace_id, parent_id, trace_flags
+  local should_sample = false
+  local had_invalid_field = false
+
+  local w3c_trace_context_header = headers["traceparent"]
+
+  if w3c_trace_context_header and type(w3c_trace_context_header) == "string" then
+    version, trace_id, parent_id, trace_flags = 
+      match(w3c_trace_context_header, W3C_TRACECONTEXT_PATTERN)
+
+    -- Only support version 00 of the W3C Trace Context spec
+    if version ~= "00" then
+      kong.log.warn("W3C Trace Context version is invalid; ignoring.")
+      had_invalid_field = true
+    else
+      -- Validate that trace-id and parent-id are valid
+      local trace_id_len = trace_id and #trace_id or 0
+
+      if trace_id and (trace_id_len == 32) and (parent_id == "" or #parent_id == 16) then
+        if parent_id == "" then
+          parent_id = nil
+        end
+        
+        -- This plugin is running in a Lua 5.1 runtime which
+        -- doesn't support biwise operations to correctly handle
+        -- the trace flags field. Will need to figure out a workaround.
+        -- See: https://github.com/w3c/trace-context/blob/master/spec/20-http_header_format.md#trace-flags
+        -- For now, just do a string comparison since the current version
+        -- of the spec only supports a single flag, "sampled".
+        if trace_flags == "01" then
+          should_sample = true
+        end
+        kong.log.err("should_sample: " .. tostring(should_sample))
+      end
+    end
+  else
+    kong.log.warn("W3C Trace Context header invalid; ignoring.")
+    had_invalid_field = true
+  end
+
+  if trace_id == nil or had_invalid_field then
+    return nil, nil, nil, should_sample
+  end
+
+  trace_id = from_hex(trace_id)
+  parent_id = from_hex(parent_id)
+  
+  return trace_id, parent_id, should_sample
+
+end
 
 local function parse_http_req_headers(headers)
+  -- Check for B3 headers first
   local trace_id, span_id, parent_id, should_sample = parse_zipkin_b3_headers(headers)
+
+  -- TODO: Offer the option to configure which headers to use. For now, W3C wins if it's present
+  -- Check for W3C headers
+  local w3c_trace_id, w3c_parent_id, w3c_should_sample = parse_w3c_trace_context_headers(headers)
+  if w3c_trace_id then
+    trace_id, span_id, parent_id, should_sample = w3c_trace_id, nil, w3c_parent_id, w3c_should_sample
+  end
 
   if not trace_id then
     return trace_id, span_id, parent_id, should_sample
