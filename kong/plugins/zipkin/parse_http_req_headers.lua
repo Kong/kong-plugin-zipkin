@@ -13,7 +13,7 @@ local baggage_mt = {
 local B3_SINGLE_PATTERN =
   "^(%x+)%-(%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x)%-?([01d]?)%-?(%x*)$"
 
-local W3C_TRACECONTEXT_PATTERN = "^(00)-(%x+)-(%x+)-(%d%d)$"
+local W3C_TRACECONTEXT_PATTERN = "^(%x+)%-(%x+)%-(%x+)%-(%x+)$"
 
 local function hex_to_char(c)
   return char(tonumber(c, 16))
@@ -167,53 +167,56 @@ local function parse_zipkin_b3_headers(headers)
 end
 
 local function parse_w3c_trace_context_headers(headers)
+  -- allow testing to spy on this.
+  local warn = kong.log.warn
+
   local version, trace_id, parent_id, trace_flags
   local should_sample = false
-  local had_invalid_field = false
 
   local w3c_trace_context_header = headers["traceparent"]
 
-  if w3c_trace_context_header and type(w3c_trace_context_header) == "string" then
-    version, trace_id, parent_id, trace_flags = 
-      match(w3c_trace_context_header, W3C_TRACECONTEXT_PATTERN)
-
-    -- Only support version 00 of the W3C Trace Context spec
-    if version ~= "00" then
-      kong.log.warn("W3C Trace Context version is invalid; ignoring.")
-      had_invalid_field = true
-    else
-      -- Validate that trace-id and parent-id are valid
-      local trace_id_len = trace_id and #trace_id or 0
-
-      if trace_id and (trace_id_len == 32) and (parent_id == "" or #parent_id == 16) then
-        if parent_id == "" then
-          parent_id = nil
-        end
-        
-        -- This plugin is running in a Lua 5.1 runtime which
-        -- doesn't support biwise operations to correctly handle
-        -- the trace flags field. Will need to figure out a workaround.
-        -- See: https://github.com/w3c/trace-context/blob/master/spec/20-http_header_format.md#trace-flags
-        -- For now, just do a string comparison since the current version
-        -- of the spec only supports a single flag, "sampled".
-        if trace_flags == "01" then
-          should_sample = true
-        end
-        kong.log.err("should_sample: " .. tostring(should_sample))
-      end
-    end
-  else
-    kong.log.warn("W3C Trace Context header invalid; ignoring.")
-    had_invalid_field = true
-  end
-
-  if trace_id == nil or had_invalid_field then
+  -- no W3C trace context
+  if w3c_trace_context_header == nil or type(w3c_trace_context_header) ~= "string" then
     return nil, nil, nil, should_sample
   end
 
+  version, trace_id, parent_id, trace_flags = match(w3c_trace_context_header, W3C_TRACECONTEXT_PATTERN)
+
+  -- values are not parsable hexidecimal and therefore invalid.
+  if version == nil or trace_id == nil or parent_id == nil or trace_flags == nil then
+    warn("invalid W3C traceparent header; ignoring.")
+  end
+
+  -- Only support version 00 of the W3C Trace Context spec.
+  if version ~= "00" then
+    warn("invalid W3C Trace Context version; ignoring.")
+    return nil, nil, nil, should_sample
+  end
+
+  -- valid trace_id is required.
+  if #trace_id ~= 32 or tonumber(trace_id, 16) == 0 then
+    warn("invalid W3C trace context trace ID; ignoring.")
+    return nil, nil, nil, should_sample
+  end
+
+  -- valid parent_id is required.
+  if #parent_id ~= 16 or tonumber(parent_id, 16) == 0 then
+    warn("invalid W3C trace context parent ID; ignoring.")
+    return nil, nil, nil, should_sample
+  end
+
+  -- valid flags are required
+  if #trace_flags ~= 2 then
+    warn("invalid W3C trace context flags; ignoring.")
+    return nil, nil, nil, should_sample
+  end
+
+  -- W3C sampled flag: https://www.w3.org/TR/trace-context/#sampled-flag
+  should_sample = tonumber(trace_flags, 16) % 2 == 1
+
   trace_id = from_hex(trace_id)
   parent_id = from_hex(parent_id)
-  
+
   return trace_id, parent_id, should_sample
 
 end
