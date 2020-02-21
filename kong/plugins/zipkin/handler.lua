@@ -139,8 +139,8 @@ if subsystem == "http" then
 
     -- Set the W3C Trace Context header
     -- TODO: Should W3C traceparent header be set even it wasn't on the incoming request?
-    -- TODO: Is .. concatenation performant?
-    set_header("Traceparent", "00-".. to_hex(proxy_span.trace_id) .. "-" .. to_hex(proxy_span.span_id) .. "-" .. tostring(proxy_span.should_sample and "01" or "00"))
+    set_header("traceparent", "00-".. to_hex(proxy_span.trace_id) .. "-" .. to_hex(proxy_span.span_id) .. "-" ..
+      tostring(proxy_span.should_sample and "01" or "00"))
 
     -- TODO: Should B3 headers be set even if they weren't on the incoming request?
     -- We want to remove headers if already present
