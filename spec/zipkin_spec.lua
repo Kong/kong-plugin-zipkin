@@ -5,6 +5,13 @@ local to_hex = require "resty.string".to_hex
 
 local fmt = string.format
 
+
+local ZIPKIN_HOST = "zipkin"
+local ZIPKIN_PORT = 9411
+local GRPCBIN_HOST = "grpcbin"
+local GRPCBIN_PORT = 15002
+
+
 -- Transform zipkin annotations into a hash of timestamps. It assumes no repeated values
 -- input: { { value = x, timestamp = y }, { value = x2, timestamp = y2 } }
 -- output: { x = y, x2 = y2 }
@@ -153,7 +160,7 @@ describe("http integration tests with zipkin server [#"
       protocols = { "http", "https", "tcp", "tls", "grpc", "grpcs" },
       config = {
         sample_ratio = 1,
-        http_endpoint = "http://zipkin:9411/api/v2/spans",
+        http_endpoint = "http://" .. ZIPKIN_HOST .. ":" .. ZIPKIN_PORT .. "/api/v2/spans",
         traceid_byte_count = traceid_byte_count,
       }
     })
@@ -172,7 +179,7 @@ describe("http integration tests with zipkin server [#"
     -- grpc upstream
     grpc_service = bp.services:insert {
       name = string.lower("grpc-" .. utils.random_string()),
-      url = "grpc://grpcbin:15002",
+      url = "grpc://" .. GRPCBIN_HOST .. ":" .. GRPCBIN_PORT,
     }
 
     grpc_route = bp.routes:insert {
@@ -203,7 +210,7 @@ describe("http integration tests with zipkin server [#"
 
     proxy_client = helpers.proxy_client()
     proxy_client_grpc = helpers.proxy_client_grpc()
-    zipkin_client = helpers.http_client("zipkin", 9411)
+    zipkin_client = helpers.http_client(ZIPKIN_HOST, ZIPKIN_PORT)
   end)
 
   teardown(function()
