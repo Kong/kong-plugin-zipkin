@@ -153,7 +153,7 @@ describe("http integration tests with zipkin server [#"
       protocols = { "http", "https", "tcp", "tls", "grpc", "grpcs" },
       config = {
         sample_ratio = 1,
-        http_endpoint = "http://127.0.0.1:9411/api/v2/spans",
+        http_endpoint = "http://zipkin:9411/api/v2/spans",
         traceid_byte_count = traceid_byte_count,
       }
     })
@@ -172,7 +172,7 @@ describe("http integration tests with zipkin server [#"
     -- grpc upstream
     grpc_service = bp.services:insert {
       name = string.lower("grpc-" .. utils.random_string()),
-      url = "grpc://localhost:15002",
+      url = "grpc://grpcbin:15002",
     }
 
     grpc_route = bp.routes:insert {
@@ -203,7 +203,7 @@ describe("http integration tests with zipkin server [#"
 
     proxy_client = helpers.proxy_client()
     proxy_client_grpc = helpers.proxy_client_grpc()
-    zipkin_client = helpers.http_client("127.0.0.1", 9411)
+    zipkin_client = helpers.http_client("zipkin", 9411)
   end)
 
   teardown(function()
@@ -290,7 +290,9 @@ describe("http integration tests with zipkin server [#"
         ["-authority"] = "grpc-route",
       }
     })
-    assert.truthy(ok)
+    if not ok then
+      error(resp or "grpc error!")
+    end
     assert.truthy(resp)
 
     local balancer_span, proxy_span, request_span =
