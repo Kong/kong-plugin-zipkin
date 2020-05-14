@@ -10,7 +10,7 @@ install:
 - git clone --single-branch https://github.com/Kong/kong-pongo ../kong-pongo
 - "../kong-pongo/pongo.sh up"
 - "../kong-pongo/pongo.sh build"
-- docker run -d --name zipkin -p 9411:9411 --network=kong-pongo_test-network openzipkin/zipkin:2.19 && while ! curl localhost:9411/health; do sleep 1; done
+- docker run -d --name zipkin -p 9411:9411 --network=kong-pongo openzipkin/zipkin:2.19 && while ! curl localhost:9411/health; do sleep 1; done
 
 script:
 - "../kong-pongo/pongo.sh lint"
