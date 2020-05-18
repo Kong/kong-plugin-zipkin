@@ -8,7 +8,7 @@ services:
       retries: 10
       test:
       - CMD
-      - curl
+      - wget
       - localhost:9411/health
       timeout: 10s
     restart: on-failure
