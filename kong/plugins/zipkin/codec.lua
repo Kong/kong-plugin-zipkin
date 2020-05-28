@@ -26,12 +26,9 @@ local function new_extractor(warn)
 		end
 
 		-- X-B3-Flags: if it equals '1' then it overrides sampling policy
-		-- We still want to warn on invalid sample header, so do this after the above
 		local debug = headers["x-b3-flags"]
 		if debug == "1" then
 			sample = true
-		elseif debug ~= nil then
-			warn("x-b3-flags header invalid; ignoring.")
 		end
 
 		local had_invalid_id = false
