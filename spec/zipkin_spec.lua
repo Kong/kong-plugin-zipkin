@@ -5,6 +5,11 @@ local to_hex = require "resty.string".to_hex
 
 local fmt = string.format
 
+local ZIPKIN_HOST = "zipkin"
+local ZIPKIN_PORT = 9411
+local GRPCBIN_HOST = "grpcbin"
+local GRPCBIN_PORT = 9000
+
 -- Transform zipkin annotations into a hash of timestamps. It assumes no repeated values
 -- input: { { value = x, timestamp = y }, { value = x2, timestamp = y2 } }
 -- output: { x = y, x2 = y2 }
@@ -153,8 +158,11 @@ describe("http integration tests with zipkin server [#"
       protocols = { "http", "https", "tcp", "tls", "grpc", "grpcs" },
       config = {
         sample_ratio = 1,
-        http_endpoint = "http://127.0.0.1:9411/api/v2/spans",
+        http_endpoint = fmt("http://%s:%d/api/v2/spans", ZIPKIN_HOST, ZIPKIN_PORT),
         traceid_byte_count = traceid_byte_count,
+        static_tags = {
+          { name = "static", value = "ok" },
+        }
       }
     })
 
@@ -172,7 +180,7 @@ describe("http integration tests with zipkin server [#"
     -- grpc upstream
     grpc_service = bp.services:insert {
       name = string.lower("grpc-" .. utils.random_string()),
-      url = "grpc://localhost:15002",
+      url = fmt("grpc://%s:%d", GRPCBIN_HOST, GRPCBIN_PORT),
     }
 
     grpc_route = bp.routes:insert {
@@ -203,7 +211,7 @@ describe("http integration tests with zipkin server [#"
 
     proxy_client = helpers.proxy_client()
     proxy_client_grpc = helpers.proxy_client_grpc()
-    zipkin_client = helpers.http_client("127.0.0.1", 9411)
+    zipkin_client = helpers.http_client(ZIPKIN_HOST, ZIPKIN_PORT)
   end)
 
   teardown(function()
@@ -234,7 +242,8 @@ describe("http integration tests with zipkin server [#"
       ["http.method"] = "GET",
       ["http.path"] = "/",
       ["http.status_code"] = "200", -- found (matches server status)
-      lc = "kong"
+      lc = "kong",
+      static = "ok",
     }, request_tags)
     local consumer_port = request_span.remoteEndpoint.port
     assert_is_integer(consumer_port)
@@ -290,7 +299,7 @@ describe("http integration tests with zipkin server [#"
         ["-authority"] = "grpc-route",
       }
     })
-    assert.truthy(ok)
+    assert(ok, resp)
     assert.truthy(resp)
 
     local balancer_span, proxy_span, request_span =
@@ -307,22 +316,25 @@ describe("http integration tests with zipkin server [#"
       ["http.method"] = "POST",
       ["http.path"] = "/hello.HelloService/SayHello",
       ["http.status_code"] = "200", -- found (matches server status)
-      lc = "kong"
+      lc = "kong",
+      static = "ok",
     }, request_tags)
     local consumer_port = request_span.remoteEndpoint.port
     assert_is_integer(consumer_port)
     assert.same({
-      ipv4 = "127.0.0.1",
+      ipv4 = '127.0.0.1',
       port = consumer_port,
     }, request_span.remoteEndpoint)
 
     -- specific assertions for proxy_span
     assert.same(proxy_span.tags["kong.route"], grpc_route.id)
-    assert.same(proxy_span.tags["peer.hostname"], "localhost")
+    assert.same(proxy_span.tags["peer.hostname"], GRPCBIN_HOST)
 
+    -- random ip assigned by Docker to the grpcbin container
+    local grpcbin_ip = proxy_span.remoteEndpoint.ipv4
     assert.same({
-      ipv4 = "127.0.0.1",
-      port = 15002,
+      ipv4 = grpcbin_ip,
+      port = GRPCBIN_PORT,
       serviceName = grpc_service.name,
     },
     proxy_span.remoteEndpoint)
@@ -337,8 +349,8 @@ describe("http integration tests with zipkin server [#"
     end
 
     assert.same({
-      ipv4 = "127.0.0.1",
-      port = 15002,
+      ipv4 = grpcbin_ip,
+      port = GRPCBIN_PORT,
       serviceName = grpc_service.name,
     },
     balancer_span.remoteEndpoint)
@@ -386,7 +398,10 @@ describe("http integration tests with zipkin server [#"
     local request_tags = request_span.tags
     assert.truthy(request_tags["kong.node.id"]:match("^[%x-]+$"))
     request_tags["kong.node.id"] = nil
-    assert.same({ lc = "kong" }, request_tags)
+    assert.same({
+      lc = "kong",
+      static = "ok",
+    }, request_tags)
     local consumer_port = request_span.remoteEndpoint.port
     assert_is_integer(consumer_port)
     assert.same({
@@ -477,7 +492,8 @@ describe("http integration tests with zipkin server [#"
       ["http.method"] = "GET",
       ["http.path"] = "/foobar",
       ["http.status_code"] = "404", -- note that this was "not found"
-      lc = "kong"
+      lc = "kong",
+      static = "ok",
     }, request_tags)
     local consumer_port = request_span.remoteEndpoint.port
     assert_is_integer(consumer_port)
