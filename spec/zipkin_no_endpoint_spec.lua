@@ -128,6 +128,22 @@ describe("http integration tests with zipkin server (no http_endpoint) [#"
     local json = cjson.decode(body)
     assert.matches("00%-" .. trace_id .. "%-%x+-01", json.headers.traceparent)
   end)
+
+  it("propagates ot headers", function()
+    local trace_id = gen_trace_id(8)
+    local r = proxy_client:get("/", {
+      headers = {
+        ["ot-tracer-traceid"] = trace_id,
+        ["ot-tracer-spanid"] = span_id,
+        ["ot-tracer-sampled"] = "1",
+        host = "http-route",
+      },
+    })
+    local body = assert.response(r).has.status(200)
+    local json = cjson.decode(body)
+    assert.equals(trace_id, json.headers["ot-tracer-traceid"])
+  end)
+
 end)
 end
 end
