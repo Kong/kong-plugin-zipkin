@@ -219,7 +219,7 @@ local function parse_ot_headers(headers)
     should_sample = nil
   end
 
-  local trace_id, span_id, sampled 
+  local trace_id, span_id
   local had_invalid_id = false
 
   local trace_id_header = headers["ot-tracer-traceid"]
@@ -324,10 +324,10 @@ local function parse(headers)
   local baggage
   local ot_baggage = parse_baggage_headers(headers, OT_BAGGAGE_PATTERN)
   local jaeger_baggage = parse_baggage_headers(headers, JAEGER_BAGGAGE_PATTERN)
-  if ot_bagggae ~= nil and jaeger_baggage ~= nil then
-    baggage = table_merge(ot_bagagge, jaeger_bagagge)
+  if ot_baggage ~= nil and jaeger_baggage ~= nil then
+    baggage = table_merge(ot_baggage, jaeger_baggage)
   else
-    baggage = ot_bagagge or jaeger_bagagge or nil 
+    baggage = ot_baggage or jaeger_baggage or nil 
   end
   
 

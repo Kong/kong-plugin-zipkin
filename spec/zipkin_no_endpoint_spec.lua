@@ -131,6 +131,7 @@ describe("http integration tests with zipkin server (no http_endpoint) [#"
 
   it("propagates ot headers", function()
     local trace_id = gen_trace_id(8)
+    local span_id = gen_span_id()
     local r = proxy_client:get("/", {
       headers = {
         ["ot-tracer-traceid"] = trace_id,
