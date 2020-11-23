@@ -223,7 +223,7 @@ local function parse_jaeger_trace_context_headers(jaeger_header)
   end
 
   -- valid trace_id is required.
-  if (#trace_id ~= 16 or #trace_id ~= 32) or tonumber(trace_id, 16) == 0 then
+  if (#trace_id ~= 16 and #trace_id ~= 32) or tonumber(trace_id, 16) == 0 then
     warn("invalid jaeger trace ID; ignoring.")
     return nil, nil, nil, should_sample
   end
@@ -241,7 +241,7 @@ local function parse_jaeger_trace_context_headers(jaeger_header)
   end
 
   -- valid flags are required
-  if #trace_flags ~= 1 or #trace_flags ~= 2 then
+  if #trace_flags ~= 1 and #trace_flags ~= 2 then
     warn("invalid jaeger flags; ignoring.")
     return nil, nil, nil, should_sample
   end
