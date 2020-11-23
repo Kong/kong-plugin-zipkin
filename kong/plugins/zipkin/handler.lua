@@ -8,7 +8,7 @@ local fmt = string.format
 local rand_bytes = utils.get_rand_bytes
 
 local ZipkinLogHandler = {
-  VERSION = "1.1.0",
+  VERSION = "1.2.0",
   -- We want to run first so that timestamps taken are at start of the phase
   -- also so that other plugins might be able to use our structures
   PRIORITY = 100000,
@@ -168,7 +168,7 @@ if subsystem == "http" then
       or ngx_now_mu()
     get_or_add_proxy_span(zipkin, access_start)
 
-    tracing_headers.set(conf.header_type, zipkin.header_type, zipkin.proxy_span)
+    tracing_headers.set(conf.header_type, zipkin.header_type, zipkin.proxy_span, conf.default_header_type)
   end
 
 

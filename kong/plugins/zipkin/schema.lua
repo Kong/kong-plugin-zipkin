@@ -46,7 +46,7 @@ return {
     { config = {
         type = "record",
         fields = {
-          { http_endpoint = typedefs.url{ required = true } },
+          { http_endpoint = typedefs.url },
           { sample_ratio = { type = "number",
                              default = 0.001,
                              between = { 0, 1 } } },
@@ -54,7 +54,9 @@ return {
           { include_credential = { type = "boolean", required = true, default = true } },
           { traceid_byte_count = { type = "integer", required = true, default = 16, one_of = { 8, 16 } } },
           { header_type = { type = "string", required = true, default = "preserve",
-                            one_of = { "preserve", "b3", "b3-single", "w3c", "jaeger" } } },
+                            one_of = { "preserve", "b3", "b3-single", "w3c", "jaeger"  } } },
+          { default_header_type = { type = "string", required = true, default = "b3",
+                                    one_of = { "b3", "b3-single", "w3c", "jaeger" } } },
           { static_tags = { type = "array", elements = static_tag,
                             custom_validator = validate_static_tags } }
         },
