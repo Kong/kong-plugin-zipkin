@@ -212,7 +212,7 @@ local function parse_jaeger_trace_context_headers(jaeger_header)
   local should_sample = false
 
   if type(jaeger_header) ~= "string" then
-    return nil, nil, nil, should_sample
+    return nil, nil, nil, nil
   end
 
   local trace_id, span_id, parent_id, trace_flags = match(jaeger_header, JAEGER_TRACECONTEXT_PATTERN)
@@ -220,36 +220,38 @@ local function parse_jaeger_trace_context_headers(jaeger_header)
   -- values are not parsable hexidecimal and therefore invalid.
   if trace_id == nil or span_id == nil or parent_id == nil or trace_flags == nil then
     warn("invalid jaeger uber-trace-id header; ignoring.")
+    return nil, nil, nil, nil
   end
 
   -- valid trace_id is required.
   if (#trace_id ~= 16 and #trace_id ~= 32) or tonumber(trace_id, 16) == 0 then
     warn("invalid jaeger trace ID; ignoring.")
-    return nil, nil, nil, should_sample
+    return nil, nil, nil, nil
   end
 
   -- valid span_id is required.
   if #span_id ~= 16 or tonumber(parent_id, 16) == 0 then
     warn("invalid jaeger span ID; ignoring.")
-    return nil, nil, nil, should_sample
+    return nil, nil, nil, nil
   end
 
   -- valid parent_id is required.
   if #parent_id ~= 16 then
     warn("invalid jaeger parent ID; ignoring.")
-    return nil, nil, nil, should_sample
+    return nil, nil, nil, nil
   end
 
   -- valid flags are required
   if #trace_flags ~= 1 and #trace_flags ~= 2 then
     warn("invalid jaeger flags; ignoring.")
-    return nil, nil, nil, should_sample
+    return nil, nil, nil, nil
   end
 
   -- Jaeger sampled flag: https://www.jaegertracing.io/docs/1.17/client-libraries/#tracespan-identity
   should_sample = tonumber(trace_flags, 16) % 2 == 1
 
   trace_id = from_hex(trace_id)
+  span_id = from_hex(span_id)
   parent_id = from_hex(parent_id)
 
   return trace_id, span_id, parent_id, should_sample
