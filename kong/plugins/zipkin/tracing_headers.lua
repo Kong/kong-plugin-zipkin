@@ -209,8 +209,6 @@ local function parse_jaeger_trace_context_headers(jaeger_header)
   -- allow testing to spy on this.
   local warn = kong.log.warn
 
-  local should_sample = false
-
   if type(jaeger_header) ~= "string" then
     return nil, nil, nil, nil
   end
@@ -248,7 +246,7 @@ local function parse_jaeger_trace_context_headers(jaeger_header)
   end
 
   -- Jaeger sampled flag: https://www.jaegertracing.io/docs/1.17/client-libraries/#tracespan-identity
-  should_sample = tonumber(trace_flags, 16) % 2 == 1
+  local should_sample = tonumber(trace_flags, 16) % 2 == 1
 
   trace_id = from_hex(trace_id)
   span_id = from_hex(span_id)
