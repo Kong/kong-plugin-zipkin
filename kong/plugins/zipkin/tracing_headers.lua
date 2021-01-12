@@ -276,8 +276,8 @@ end
 local function set(conf_header_type, found_header_type, proxy_span, conf_default_header_type)
   local set_header = kong.service.request.set_header
 
-  -- If conf_header_type is set to `preserve`, default_header_type is ignored when found is set.
-  -- if conf_headre_type is set to `ignore`, found_header_type is not set, thus default_header_type is used.
+  -- If conf_header_type is set to `preserve`, found_header_type is used over default_header_type;
+  -- if conf_header_type is set to `ignore`, found_header_type is not set, thus default_header_type is used.
   if conf_header_type ~= "preserve" and
      conf_header_type ~= "ignore" and
      found_header_type ~= nil and
