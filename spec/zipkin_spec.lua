@@ -5,7 +5,7 @@ local to_hex = require "resty.string".to_hex
 
 local fmt = string.format
 
-local ZIPKIN_HOST = "zipkin"
+local ZIPKIN_HOST = os.getenv("ZIPKIN_HOST") or "zipkin"
 local ZIPKIN_PORT = 9411
 local GRPCBIN_HOST = "grpcbin"
 local GRPCBIN_PORT = 9000
