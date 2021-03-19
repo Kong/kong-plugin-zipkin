@@ -184,6 +184,13 @@ if subsystem == "http" then
     get_or_add_proxy_span(zipkin, access_start)
 
     tracing_headers.set(conf.header_type, zipkin.header_type, zipkin.proxy_span, conf.default_header_type)
+
+    if conf.include_header_x_request_id then
+      local x_request_id = kong.request.get_header('x-request-id')
+      if x_request_id then
+        zipkin.request_span:set_tag(conf.tag_name_for_x_request_id, x_request_id)
+      end
+    end
   end
 
 
