@@ -306,8 +306,7 @@ describe("http integration tests with zipkin server [#"
         greeting = "world!"
       },
       opts = {
-        ["-H"] = "'x-b3-sampled: 1'",
-        ["-H"] = "'x-request-id: " .. x_request_id .. "'",
+        ["-H"] = "'x-request-id: " .. x_request_id .. "' -H 'x-b3-sampled: 1'",
         ["-authority"] = "grpc-route",
       }
     })
