@@ -22,6 +22,7 @@ local math_random        = math.random
 local ngx_req_start_time = ngx.req.start_time
 local ngx_now            = ngx.now
 
+
 -- ngx.now in microseconds
 local function ngx_now_mu()
   return ngx_now() * 1000000
