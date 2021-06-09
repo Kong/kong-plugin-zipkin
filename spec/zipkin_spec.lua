@@ -76,6 +76,69 @@ local function wait_for_spans(zipkin_client, number_of_spans, remoteServiceName,
 end
 
 
+-- the following assertions should be true on any span list, even in error mode
+local function assert_span_invariants(request_span, proxy_span, expected_name, traceid_len, start_s)
+  -- request_span
+  assert.same("table", type(request_span))
+  assert.same("string", type(request_span.id))
+  assert.same(expected_name, request_span.name)
+  assert.same(request_span.id, proxy_span.parentId)
+
+  assert.same("SERVER", request_span.kind)
+
+  assert.same("string", type(request_span.traceId))
+  assert.equals(traceid_len, #request_span.traceId, request_span.traceId)
+  assert_valid_timestamp(request_span.timestamp, start_s)
+
+  if request_span.duration and proxy_span.duration then
+    assert.truthy(request_span.duration >= proxy_span.duration)
+  end
+
+  assert.equals(2, #request_span.annotations)
+  local rann = annotations_to_hash(request_span.annotations)
+  assert_valid_timestamp(rann["krs"], start_s)
+  assert_valid_timestamp(rann["krf"], start_s)
+  assert.truthy(rann["krs"] <= rann["krf"])
+
+  assert.same({ serviceName = "kong" }, request_span.localEndpoint)
+
+  -- proxy_span
+  assert.same("table", type(proxy_span))
+  assert.same("string", type(proxy_span.id))
+  assert.same(request_span.name .. " (proxy)", proxy_span.name)
+  assert.same(request_span.id, proxy_span.parentId)
+
+  assert.same("CLIENT", proxy_span.kind)
+
+  assert.same("string", type(proxy_span.traceId))
+  assert.equals(request_span.traceId, proxy_span.traceId)
+  assert_valid_timestamp(proxy_span.timestamp, start_s)
+
+  if request_span.duration and proxy_span.duration then
+    assert.truthy(proxy_span.duration >= 0)
+  end
+
+  assert.equals(6, #proxy_span.annotations)
+  local pann = annotations_to_hash(proxy_span.annotations)
+
+  assert_valid_timestamp(pann["kas"], start_s)
+  assert_valid_timestamp(pann["kaf"], start_s)
+  assert_valid_timestamp(pann["khs"], start_s)
+  assert_valid_timestamp(pann["khf"], start_s)
+  assert_valid_timestamp(pann["kbs"], start_s)
+  assert_valid_timestamp(pann["kbf"], start_s)
+
+  assert.truthy(pann["kas"] <= pann["kaf"])
+  assert.truthy(pann["khs"] <= pann["khf"])
+  assert.truthy(pann["kbs"] <= pann["kbf"])
+
+  assert.truthy(pann["khs"] <= pann["kbs"])
+end
+
+
+
+
+
 for _, strategy in helpers.each_strategy() do
 for _, traceid_byte_count in ipairs({ 8, 16 }) do
 describe("http integration tests with zipkin server [#"
@@ -87,66 +150,6 @@ describe("http integration tests with zipkin server [#"
   local route, grpc_route, tcp_route
   local zipkin_client
   local proxy_client
-
-  -- the following assertions should be true on any span list, even in error mode
-  local function assert_span_invariants(request_span, proxy_span, expected_name, traceid_len, start_s)
-    -- request_span
-    assert.same("table", type(request_span))
-    assert.same("string", type(request_span.id))
-    assert.same(expected_name, request_span.name)
-    assert.same(request_span.id, proxy_span.parentId)
-
-    assert.same("SERVER", request_span.kind)
-
-    assert.same("string", type(request_span.traceId))
-    assert.equals(traceid_len, #request_span.traceId, request_span.traceId)
-    assert_valid_timestamp(request_span.timestamp, start_s)
-
-    if request_span.duration and proxy_span.duration then
-      assert.truthy(request_span.duration >= proxy_span.duration)
-    end
-
-    assert.equals(2, #request_span.annotations)
-    local rann = annotations_to_hash(request_span.annotations)
-    assert_valid_timestamp(rann["krs"], start_s)
-    assert_valid_timestamp(rann["krf"], start_s)
-    assert.truthy(rann["krs"] <= rann["krf"])
-
-    assert.same({ serviceName = "kong" }, request_span.localEndpoint)
-
-    -- proxy_span
-    assert.same("table", type(proxy_span))
-    assert.same("string", type(proxy_span.id))
-    assert.same(request_span.name .. " (proxy)", proxy_span.name)
-    assert.same(request_span.id, proxy_span.parentId)
-
-    assert.same("CLIENT", proxy_span.kind)
-
-    assert.same("string", type(proxy_span.traceId))
-    assert.equals(request_span.traceId, proxy_span.traceId)
-    assert_valid_timestamp(proxy_span.timestamp, start_s)
-
-    if request_span.duration and proxy_span.duration then
-      assert.truthy(proxy_span.duration >= 0)
-    end
-
-    assert.equals(6, #proxy_span.annotations)
-    local pann = annotations_to_hash(proxy_span.annotations)
-
-    assert_valid_timestamp(pann["kas"], start_s)
-    assert_valid_timestamp(pann["kaf"], start_s)
-    assert_valid_timestamp(pann["khs"], start_s)
-    assert_valid_timestamp(pann["khf"], start_s)
-    assert_valid_timestamp(pann["kbs"], start_s)
-    assert_valid_timestamp(pann["kbf"], start_s)
-
-    assert.truthy(pann["kas"] <= pann["kaf"])
-    assert.truthy(pann["khs"] <= pann["khf"])
-    assert.truthy(pann["kbs"] <= pann["kbf"])
-
-    assert.truthy(pann["khs"] <= pann["kbs"])
-  end
-
 
   lazy_setup(function()
     local bp = helpers.get_db_utils(strategy, { "services", "routes", "plugins" })
