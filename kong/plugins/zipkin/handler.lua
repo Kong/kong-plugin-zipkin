@@ -116,6 +116,7 @@ if subsystem == "http" then
     local header_type, trace_id, span_id, parent_id, should_sample, baggage =
       tracing_headers.parse(req_headers)
     local method = req.get_method()
+    local path = req.get_path()
 
     if should_sample == nil then
       should_sample = math_random() < conf.sample_ratio
@@ -127,7 +128,7 @@ if subsystem == "http" then
 
     local request_span = new_span(
       "SERVER",
-      method,
+      method .. ' ' .. path,
       ngx_req_start_time_mu(),
       should_sample,
       trace_id,
@@ -140,7 +141,7 @@ if subsystem == "http" then
 
     request_span:set_tag("lc", "kong")
     request_span:set_tag("http.method", method)
-    request_span:set_tag("http.path", req.get_path())
+    request_span:set_tag("http.path", path)
 
     local static_tags = conf.static_tags
     if type(static_tags) == "table" then
