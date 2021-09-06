@@ -113,15 +113,8 @@ if subsystem == "http" then
 
     local req_headers = req.get_headers()
 
-    local header_type = conf.default_header_type
-    local trace_id, span_id, parent_id, should_sample, baggage
-
-    -- If header_type is set to `ignore`, then the default_header_type will
-    -- be used to initiate a new trace.
-    if conf.header_type ~= "ignore" then
-      header_type, trace_id, span_id, parent_id, should_sample, baggage =
-        tracing_headers.parse(req.get_headers())
-    end
+    local header_type, trace_id, span_id, parent_id, should_sample, baggage =
+      tracing_headers.parse(req_headers, conf.header_type)
 
     local method = req.get_method()
 

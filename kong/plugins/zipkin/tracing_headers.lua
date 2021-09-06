@@ -364,7 +364,11 @@ local function find_header_type(headers)
 end
 
 
-local function parse(headers)
+local function parse(headers, conf_header_type)
+  if conf_header_type == "ignore" then
+    return nil
+  end
+
   -- Check for B3 headers first
   local header_type, composed_header = find_header_type(headers)
   local trace_id, span_id, parent_id, should_sample
