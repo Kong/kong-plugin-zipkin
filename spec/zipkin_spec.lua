@@ -308,6 +308,7 @@ describe("http integration tests with zipkin server [#"
           { name = "static", value = "ok" },
         },
         default_header_type = "b3-single",
+        include_header_x_request_id = true,
       }
     })
 
@@ -369,12 +370,15 @@ describe("http integration tests with zipkin server [#"
 
   it("generates spans, tags and annotations for regular requests", function()
     local start_s = ngx.now()
+    local uuid = require("resty.jit-uuid")
+    local x_request_id = uuid.generate_v4()
 
     local r = proxy_client:get("/", {
       headers = {
         ["x-b3-sampled"] = "1",
         host  = "http-route",
-        ["zipkin-tags"] = "foo=bar; baz=qux"
+        ["zipkin-tags"] = "foo=bar; baz=qux",
+        ["x-request-id"] = x_request_id
       },
     })
     assert.response(r).has.status(200)
@@ -392,6 +396,7 @@ describe("http integration tests with zipkin server [#"
       ["http.method"] = "GET",
       ["http.path"] = "/",
       ["http.status_code"] = "200", -- found (matches server status)
+      ["guid:x-request-id"] = x_request_id,
       lc = "kong",
       static = "ok",
       foo = "bar",
@@ -443,6 +448,8 @@ describe("http integration tests with zipkin server [#"
 
   it("generates spans, tags and annotations for regular requests (#grpc)", function()
     local start_s = ngx.now()
+    local uuid = require("resty.jit-uuid")
+    local x_request_id = uuid.generate_v4()
 
     local ok, resp = proxy_client_grpc({
       service = "hello.HelloService.SayHello",
@@ -450,7 +457,7 @@ describe("http integration tests with zipkin server [#"
         greeting = "world!"
       },
       opts = {
-        ["-H"] = "'x-b3-sampled: 1'",
+        ["-H"] = "'x-request-id: " .. x_request_id .. "' -H 'x-b3-sampled: 1'",
         ["-authority"] = "grpc-route",
       }
     })
@@ -471,6 +478,7 @@ describe("http integration tests with zipkin server [#"
       ["http.method"] = "POST",
       ["http.path"] = "/hello.HelloService/SayHello",
       ["http.status_code"] = "200", -- found (matches server status)
+      ["guid:x-request-id"] = x_request_id,
       lc = "kong",
       static = "ok",
     }, request_tags)
