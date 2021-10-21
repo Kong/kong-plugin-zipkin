@@ -116,7 +116,6 @@ if subsystem == "http" then
     local header_type, trace_id, span_id, parent_id, should_sample, baggage =
       tracing_headers.parse(req_headers)
     local method = req.get_method()
-    local path = req.get_path()
 
     if should_sample == nil then
       should_sample = math_random() < conf.sample_ratio
@@ -125,10 +124,16 @@ if subsystem == "http" then
     if trace_id == nil then
       trace_id = rand_bytes(conf.traceid_byte_count)
     end
+    
+    local span_format = method
+    local path = req.get_path()
+    if conf.span_display_path == true then
+      span_format = method .. ' ' .. path
+    end  
 
     local request_span = new_span(
       "SERVER",
-      method .. ' ' .. path,
+      span_format,
       ngx_req_start_time_mu(),
       should_sample,
       trace_id,
